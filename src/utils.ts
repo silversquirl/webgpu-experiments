@@ -33,6 +33,33 @@ export function rgba(color: string): Color {
   return [r, g, b, a];
 }
 
+// Returns a texture that will be filled with the loaded image data after the next queue flush
+export async function texture(state: State, usage: GPUTextureUsageFlags, url: string): Promise<GPUTexture> {
+  const res = await fetch(url);
+  if (res.status !== 200) {
+    throw new Error(`failed to load texture at '${url}': ${res.statusText}`);
+  }
+  const img = await createImageBitmap(await res.blob());
+
+  const tex = state.device.createTexture({
+    size: [img.width, img.height],
+    format: state.preferredFormat,
+    // TODO: check if it's more efficient to upload to a separate RENDER_ATTACHMENT texture and then copy across
+    usage: usage | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+
+  state.device.queue.copyExternalImageToTexture(
+    { source: img },
+    {
+      texture: tex,
+      premultipliedAlpha: true,
+    },
+    [img.width, img.height],
+  );
+
+  return tex;
+}
+
 export function assert(cond: boolean, message = ""): asserts cond {
   if (!cond) {
     if (message !== "") {

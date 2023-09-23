@@ -36,7 +36,7 @@ async function init(): Promise<State> {
 
     camera: {
       proj: mat4.perspective(mat4.create(), rad(90), canvas.width / canvas.height, 0.1, 100),
-      look: mat4.lookAt(mat4.create(), [0, 2, -1], [0, 0, 0], [0, 1, 0]),
+      look: mat4.lookAt(mat4.create(), [10, 3.5, 10], [0, 0.5, 0], [0, 1, 0]),
     },
   };
 }
@@ -51,6 +51,7 @@ const PASSES: PassFactory[] = [Terrain.create];
 // Init engine
 const state = await init();
 const passes: Pass[] = await Promise.all(PASSES.map((factory) => factory(state)));
+await state.device.queue.onSubmittedWorkDone();
 const draw = () => {
   {
     // Generate MVP matrix

@@ -1,11 +1,12 @@
 // @ts-expect-error
 import SHADER_SOURCE from "./terrain.wgsl";
-import { Pass, State } from "./utils";
+import { Pass, State, texture } from "./utils";
 
 // Grid will be 2^SIZE - 1 on each side
-const SIZE = 3;
-
+const SIZE = 7;
 const N_COLS_ROWS = (1 << SIZE) - 1;
+const SCALE = 80 / N_COLS_ROWS;
+
 const N_VERTS =
   2 * N_COLS_ROWS * N_COLS_ROWS + // 2 verts per tri
   2 * N_COLS_ROWS; // 2 extras per row
@@ -13,11 +14,16 @@ const N_VERTS =
 const CONSTANTS = {
   width: N_COLS_ROWS,
   height_log2: SIZE,
+  scale: SCALE,
 };
 
 export class Terrain implements Pass {
   constructor(readonly pipeline: GPURenderPipeline, readonly binds: GPUBindGroup) {}
   static async create(state: State): Promise<Terrain> {
+    // Start loading textures immediately
+    const heightmapTex = texture(state, GPUTextureUsage.TEXTURE_BINDING, "/assets/terrain_heightmap.png");
+    const surfaceTex = texture(state, GPUTextureUsage.TEXTURE_BINDING, "/assets/terrain_surface.png");
+
     const shader = await state.device.createShaderModule({
       code: SHADER_SOURCE,
       // TODO: provide hints
@@ -39,13 +45,19 @@ export class Terrain implements Pass {
       // depthStencil: {},
     });
 
+    const trilinearSampler = state.device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+      mipmapFilter: "linear",
+    });
+
     const binds = state.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [
-        {
-          binding: 0,
-          resource: { buffer: state.sceneDataBuf },
-        },
+        { binding: 0, resource: { buffer: state.sceneDataBuf } },
+        { binding: 1, resource: trilinearSampler },
+        { binding: 2, resource: (await heightmapTex).createView({}) },
+        { binding: 3, resource: (await surfaceTex).createView({}) },
       ],
     });
 
