@@ -2,6 +2,19 @@
 import SHADER_SOURCE from "./terrain.wgsl";
 import { Pass, State } from "./utils";
 
+// Grid will be 2^SIZE - 1 on each side
+const SIZE = 3;
+
+const N_COLS_ROWS = (1 << SIZE) - 1;
+const N_VERTS =
+  2 * N_COLS_ROWS * N_COLS_ROWS + // 2 verts per tri
+  2 * N_COLS_ROWS; // 2 extras per row
+
+const CONSTANTS = {
+  width: N_COLS_ROWS,
+  height_log2: SIZE,
+};
+
 export class Terrain implements Pass {
   constructor(readonly pipeline: GPURenderPipeline, readonly binds: GPUBindGroup) {}
   static async create(state: State): Promise<Terrain> {
@@ -15,6 +28,7 @@ export class Terrain implements Pass {
       vertex: {
         module: shader,
         entryPoint: "vertex",
+        constants: CONSTANTS,
       },
       primitive: { topology: "triangle-strip" },
       fragment: {
@@ -41,6 +55,6 @@ export class Terrain implements Pass {
   draw(state: State, pass: GPURenderPassEncoder): void {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.binds);
-    pass.draw(4);
+    pass.draw(N_VERTS);
   }
 }
