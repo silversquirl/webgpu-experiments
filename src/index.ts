@@ -1,31 +1,6 @@
 import { mat4 } from "gl-matrix";
 import { Terrain } from "./terrain";
-import { Pass, State } from "./types";
-
-const TAU = 2 * Math.PI;
-function rad(deg: number): number {
-  return deg * (TAU / 360);
-}
-
-type Color = readonly [number, number, number, number];
-function rgba(color: string): Color {
-  const m = color.match(/^#([0-9a-z]{2})([0-9a-z]{2})([0-9a-z]{2})([0-9a-z]{2})?$/i);
-  if (m === null) {
-    throw new Error(`invalid hex color string '${color}'`);
-  }
-  const [r, g, b, a] = m.slice(1).map((hex) => parseInt(hex ?? "ff", 16) / 255);
-  return [r, g, b, a];
-}
-
-function assert(cond: boolean, message = ""): asserts cond {
-  if (!cond) {
-    if (message !== "") {
-      throw new Error("assertion failed");
-    } else {
-      throw new Error(`assertion failed: ${message}`);
-    }
-  }
-}
+import { assert, Pass, State, formatMatrix, rad, rgba } from "./utils";
 
 async function init(): Promise<State> {
   const adapter = await navigator.gpu.requestAdapter();
@@ -50,16 +25,23 @@ async function init(): Promise<State> {
     device,
     preferredFormat,
 
+    sceneData: new ArrayBuffer(SCENE_DATA_SIZE),
+    sceneDataBuf: device.createBuffer({
+      size: SCENE_DATA_SIZE,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    }),
+
     canvas,
     context,
 
     camera: {
       proj: mat4.perspective(mat4.create(), rad(90), canvas.width / canvas.height, 0.1, 100),
-      look: mat4.lookAt(mat4.create(), [0, 2, -5], [0, 0, 0], [0, 1, 0]),
+      look: mat4.lookAt(mat4.create(), [0, 2, -1], [0, 0, 0], [0, 1, 0]),
     },
   };
 }
 
+const SCENE_DATA_SIZE = 4 * 4 * 4; // mvp: mat4x4<f32>
 const SKY_BLUE = rgba("#87CEEB");
 
 // Declare render passes
@@ -70,6 +52,14 @@ const PASSES: PassFactory[] = [Terrain.create];
 const state = await init();
 const passes: Pass[] = await Promise.all(PASSES.map((factory) => factory(state)));
 const draw = () => {
+  {
+    // Generate MVP matrix
+    const mvp = new Float32Array(state.sceneData, 0, 4 * 4);
+    mat4.mul(mvp, state.camera.proj, state.camera.look);
+    // Upload scene data
+    state.device.queue.writeBuffer(state.sceneDataBuf, 0, state.sceneData);
+  }
+
   const tex = state.context.getCurrentTexture();
   const attach: GPURenderPassColorAttachment = {
     view: tex.createView({}),

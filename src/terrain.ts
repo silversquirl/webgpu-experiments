@@ -1,9 +1,9 @@
 // @ts-expect-error
 import SHADER_SOURCE from "./terrain.wgsl";
-import { Pass, State } from "./types";
+import { Pass, State } from "./utils";
 
 export class Terrain implements Pass {
-  constructor(readonly pipeline: GPURenderPipeline) {}
+  constructor(readonly pipeline: GPURenderPipeline, readonly binds: GPUBindGroup) {}
   static async create(state: State): Promise<Terrain> {
     const shader = await state.device.createShaderModule({
       code: SHADER_SOURCE,
@@ -24,11 +24,23 @@ export class Terrain implements Pass {
       },
       // depthStencil: {},
     });
-    return new Terrain(pipeline);
+
+    const binds = state.device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        {
+          binding: 0,
+          resource: { buffer: state.sceneDataBuf },
+        },
+      ],
+    });
+
+    return new Terrain(pipeline, binds);
   }
 
   draw(state: State, pass: GPURenderPassEncoder): void {
     pass.setPipeline(this.pipeline);
+    pass.setBindGroup(0, this.binds);
     pass.draw(4);
   }
 }
