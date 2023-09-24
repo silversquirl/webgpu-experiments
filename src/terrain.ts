@@ -1,9 +1,9 @@
 // @ts-expect-error
 import SHADER_SOURCE from "./terrain.wgsl";
-import { Pass, State, texture } from "./utils";
+import { Pass, SCENE_DATA_SIZE, State, texture } from "./utils";
 
 // Grid will be 2^SIZE - 1 on each side
-const SIZE = 7;
+const SIZE = 6;
 const N_COLS_ROWS = (1 << SIZE) - 1;
 const SCALE = 80 / N_COLS_ROWS;
 
@@ -24,13 +24,30 @@ export class Terrain implements Pass {
     const heightmapTex = texture(state, GPUTextureUsage.TEXTURE_BINDING, "/assets/terrain_heightmap.png");
     const surfaceTex = texture(state, GPUTextureUsage.TEXTURE_BINDING, "/assets/terrain_surface.png");
 
-    const shader = await state.device.createShaderModule({
+    const layout = state.device.createPipelineLayout({
+      bindGroupLayouts: [
+        state.device.createBindGroupLayout({
+          entries: [
+            { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { minBindingSize: SCENE_DATA_SIZE } },
+            { binding: 1, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: {} },
+            { binding: 2, visibility: GPUShaderStage.VERTEX, texture: {} },
+            { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+          ],
+        }),
+      ],
+    });
+
+    const shader = state.device.createShaderModule({
       code: SHADER_SOURCE,
-      // TODO: provide hints
+      hints: {
+        vertex: { layout },
+        fragment: { layout },
+      },
     });
 
     const pipeline = await state.device.createRenderPipelineAsync({
-      layout: "auto",
+      layout,
+
       vertex: {
         module: shader,
         entryPoint: "vertex",

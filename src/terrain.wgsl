@@ -35,13 +35,13 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
 
     let coord = vec2<f32>(gridCoord(index));
     let uv = coord / vec2<f32>(size);
-    let height: vec4f = textureSampleBaseClampToEdge(heightmap, samp, uv);
+    let height: f32 = textureSampleBaseClampToEdge(heightmap, samp, uv).x;
 
     let offset = vec2(0.5) * vec2<f32>(size);
     let xy = (coord - offset) * scale;
 
     return VertexOutput(
-        scene.mvp * vec4(xy.x, height.x * 10.0, xy.y, 1.0),
+        scene.mvp * vec4(xy.x, height * 10.0, xy.y, 1.0),
         uv,
         index,
     );
@@ -51,5 +51,5 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
 fn fragment(@location(0) uv: vec2f, @location(1) @interpolate(flat) vertId: u32) -> @location(0) vec4f {
     let texel = textureSample(surface, samp, uv);
     return texel;
-    // return vec4(value.x, f32(vertId & 1u), 0.0, 1.0);
+    // return vec4(0.0, f32(vertId & 1u), 0.0, 1.0);
 }

@@ -1,6 +1,6 @@
 import { mat4 } from "gl-matrix";
 import { Terrain } from "./terrain";
-import { assert, Pass, State, formatMatrix, rad, rgba } from "./utils";
+import { Pass, SCENE_DATA_SIZE, State, assert, rad, rgba } from "./utils";
 
 async function init(): Promise<State> {
   const adapter = await navigator.gpu.requestAdapter();
@@ -36,12 +36,11 @@ async function init(): Promise<State> {
 
     camera: {
       proj: mat4.perspective(mat4.create(), rad(90), canvas.width / canvas.height, 0.1, 100),
-      look: mat4.lookAt(mat4.create(), [10, 3.5, 10], [0, 0.5, 0], [0, 1, 0]),
+      look: mat4.lookAt(mat4.create(), [4, 3.5, 5], [0, 1.0, 0], [0, 1, 0]),
     },
   };
 }
 
-const SCENE_DATA_SIZE = 4 * 4 * 4; // mvp: mat4x4<f32>
 const SKY_BLUE = rgba("#87CEEB");
 
 // Declare render passes
@@ -49,10 +48,32 @@ type PassFactory = (state: State) => Promise<Pass>;
 const PASSES: PassFactory[] = [Terrain.create];
 
 // Init engine
+console.time("engine init");
 const state = await init();
 const passes: Pass[] = await Promise.all(PASSES.map((factory) => factory(state)));
+console.timeEnd("engine init");
+console.time("gpu init");
 await state.device.queue.onSubmittedWorkDone();
-const draw = () => {
+console.timeEnd("gpu init");
+
+const startTime = performance.now();
+let frameCount = 0;
+let prevFrame = startTime;
+const draw = async (dt: DOMHighResTimeStamp) => {
+  if (dt - startTime > 2000) {
+    return;
+  }
+
+  requestAnimationFrame(draw);
+
+  console.log(`${dt - prevFrame}ms`);
+  console.log(`${(dt - startTime) / frameCount}ms avg`);
+
+  frameCount++;
+  prevFrame = dt;
+
+  console.time("frame build");
+
   {
     // Generate MVP matrix
     const mvp = new Float32Array(state.sceneData, 0, 4 * 4);
@@ -83,6 +104,8 @@ const draw = () => {
   const buf = encoder.finish();
   state.device.queue.submit([buf]);
 
-  // requestAnimationFrame(draw);
+  console.timeEnd("frame build");
+
+  await state.device.queue.onSubmittedWorkDone();
 };
-draw();
+draw(startTime);
