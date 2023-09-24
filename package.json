@@ -1,7 +1,7 @@
 {
   "name": "grass",
   "scripts": {
-    "compile": "bun build --outdir build --target browser --sourcemap=inline --loader .wgsl:text src/index.ts"
+    "compile": "bun build --outdir build --target browser --loader .wgsl:text src/index.ts"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.34"

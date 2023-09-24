@@ -1,18 +1,28 @@
 import { mat4 } from "gl-matrix";
+import { Foliage } from "./foliage";
+import { DummyProfiler, GPUProfiler, Profiler } from "./profiler";
 import { Terrain } from "./terrain";
-import { Pass, SCENE_DATA_SIZE, State, assert, rad, rgba } from "./utils";
+import { assert, Pass, SCENE_DATA_SIZE, State, rad, rgba } from "./utils";
 
-async function init(): Promise<State> {
+async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
+  let enable_profiling = opts.enable_profiling ?? false;
+
   const adapter = await navigator.gpu.requestAdapter();
-  assert(adapter !== null);
-  const device = await adapter.requestDevice();
+  assert(adapter !== null, "failed to get adapter");
+  if (enable_profiling && !adapter.features.has("timestamp-query")) {
+    console.warn("profiling disabled due to lack of support for timestamp queries");
+    enable_profiling = false;
+  }
+  const device = await adapter.requestDevice({
+    requiredFeatures: enable_profiling ? ["timestamp-query"] : [],
+  });
 
   const canvas = document.createElement("canvas");
   canvas.width = 800;
   canvas.height = 720;
   document.body.appendChild(canvas);
   const context = canvas.getContext("webgpu");
-  assert(context !== null);
+  assert(context !== null, "failed to get context");
 
   const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
   context.configure({
@@ -22,6 +32,8 @@ async function init(): Promise<State> {
   });
 
   return {
+    enable_profiling,
+
     device,
     preferredFormat,
 
@@ -43,36 +55,67 @@ async function init(): Promise<State> {
 
 const SKY_BLUE = rgba("#87CEEB");
 
-// Declare render passes
 type PassFactory = (state: State) => Promise<Pass>;
-const PASSES: PassFactory[] = [Terrain.create];
+const PASSES: PassFactory[] = [
+  // Declare render passes
+  Terrain.create,
+  Foliage.create,
+];
 
 // Init engine
 console.time("engine init");
-const state = await init();
+const state = await init({ enable_profiling: true });
 const passes: Pass[] = await Promise.all(PASSES.map((factory) => factory(state)));
 console.timeEnd("engine init");
 console.time("gpu init");
 await state.device.queue.onSubmittedWorkDone();
 console.timeEnd("gpu init");
 
+const profiler: Profiler = state.enable_profiling ? new GPUProfiler(state.device, passes.length) : new DummyProfiler();
+
 const startTime = performance.now();
 let frameCount = 0;
 let prevFrame = startTime;
+const totalProfileSections = new Array(profiler.sectionCount);
 const draw = async (dt: DOMHighResTimeStamp) => {
   if (dt - startTime > 2000) {
+    let results = "Average profile timings:\n";
+    for (const delta of totalProfileSections) {
+      results += `- ${delta / frameCount}ms\n`;
+    }
+    console.log(results);
     return;
   }
 
-  requestAnimationFrame(draw);
+  if (!state.enable_profiling) {
+    requestAnimationFrame(draw);
+  }
 
-  console.log(`${dt - prevFrame}ms`);
-  console.log(`${(dt - startTime) / frameCount}ms avg`);
+  if (frameCount > 0) {
+    const lastFrame = dt - prevFrame;
+    const avgFrame = (dt - startTime) / frameCount;
+    console.log(`${lastFrame}ms`);
+    console.log(`${avgFrame}ms avg`);
 
+    const profileSections = await profiler.read();
+    if (profileSections.length > 0) {
+      let results = "Profile for last frame:\n";
+      for (const [idx, section] of profileSections.entries()) {
+        const delta = section.end - section.start;
+        const deltaMs = Number(delta) / 1_000_000;
+        results += `- ${deltaMs}ms (start at ${section.start}; end at ${section.end})\n`;
+
+        totalProfileSections[idx] = (totalProfileSections[idx] ?? 0) + deltaMs;
+      }
+      if (lastFrame > avgFrame) {
+        console.warn(results);
+      } else {
+        console.log(results);
+      }
+    }
+  }
   frameCount++;
   prevFrame = dt;
-
-  console.time("frame build");
 
   {
     // Generate MVP matrix
@@ -91,9 +134,14 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   };
 
   const encoder = state.device.createCommandEncoder({});
+
+  let queryId = 0;
+  const prof = profiler.beginFrame(encoder);
+
   for (const pass of passes) {
     const rp = encoder.beginRenderPass({
       colorAttachments: [attach],
+      timestampWrites: prof.pass(),
     });
     pass.draw(state, rp);
     rp.end();
@@ -101,11 +149,21 @@ const draw = async (dt: DOMHighResTimeStamp) => {
     attach.loadOp = "load";
   }
 
+  prof.finish();
+
   const buf = encoder.finish();
   state.device.queue.submit([buf]);
 
-  console.timeEnd("frame build");
-
+  if (state.enable_profiling) {
+    console.time("frame draw");
+  }
   await state.device.queue.onSubmittedWorkDone();
+  if (state.enable_profiling) {
+    console.timeEnd("frame draw");
+  }
+
+  if (state.enable_profiling) {
+    requestAnimationFrame(draw);
+  }
 };
 draw(startTime);

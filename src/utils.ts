@@ -1,6 +1,8 @@
 import { mat4 } from "gl-matrix";
 
 export interface State {
+  enable_profiling: boolean;
+
   device: GPUDevice;
   preferredFormat: GPUTextureFormat;
 
@@ -61,12 +63,46 @@ export async function texture(state: State, usage: GPUTextureUsageFlags, url: st
   return tex;
 }
 
+// Super primitive binary STL loader
+export async function model(state: State, usage: GPUBufferUsageFlags, url: string): Promise<Model> {
+  const res = await fetch(url);
+  if (res.status !== 200) {
+    throw new Error(`failed to load model at '${url}': ${res.statusText}`);
+  }
+
+  const data = await res.arrayBuffer();
+  const view = new DataView(data, 80);
+  const numTris = view.getUint32(0, true);
+  const numVerts = numTris * 3;
+
+  const buf = state.device.createBuffer({
+    size: numVerts * 3 * 4,
+    usage,
+    mappedAtCreation: true,
+  });
+  const verts = new Float32Array(buf.getMappedRange());
+  for (let tri = 0; tri < numTris; tri++) {
+    for (let i = 0; i < 3 * 3; i++) {
+      const offset =
+        4 + // header
+        tri * 50 + // 50 bytes per tri
+        12 + // skip normal
+        i * 4; // 4 bytes per float
+      verts[tri * 3 * 3 + i] = view.getFloat32(offset, true);
+    }
+  }
+  buf.unmap();
+
+  return { buf, numVerts };
+}
+export type Model = { buf: GPUBuffer; numVerts: number };
+
 export function assert(cond: boolean, message = ""): asserts cond {
   if (!cond) {
     if (message !== "") {
-      throw new Error("assertion failed");
-    } else {
       throw new Error(`assertion failed: ${message}`);
+    } else {
+      throw new Error("assertion failed");
     }
   }
 }
