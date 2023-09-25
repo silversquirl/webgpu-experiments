@@ -55,9 +55,9 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
     camera: {
       proj: mat4.perspective(mat4.create(), rad(90), canvas.width / canvas.height, 0.1, 100),
       // look: mat4.lookAt(mat4.create(), [4, 3.5, 5], [0, 1.0, 0], [0, 1, 0]),
-      // look: mat4.lookAt(mat4.create(), [50, 30, 0], [0, 1.0, 0], [0, 1, 0]),
+      look: mat4.lookAt(mat4.create(), [50, 30, 0], [0, 1.0, 0], [0, 1, 0]),
       // look: mat4.lookAt(mat4.create(), [0, 30, 50], [0, 1.0, 0], [0, 1, 0]),
-      look: mat4.lookAt(mat4.create(), [1, 50, 0], [0, 1.0, 0], [0, 1, 0]),
+      // look: mat4.lookAt(mat4.create(), [1, 50, 0], [0, 1.0, 0], [0, 1, 0]),
     },
   };
 }

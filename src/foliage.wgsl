@@ -16,12 +16,26 @@ struct VertexOutput {
 }
 
 @vertex
-fn vertex(@location(0) vertexPos: vec3f, @location(1) instancePos: vec2f) -> VertexOutput {
+fn vertex(@location(0) vertexPos: vec3f, @location(1) instancePos: vec2f, @location(2) instanceRot: f32) -> VertexOutput {
     let uv = (instancePos * vec2(scale) + vec2(1.0)) * vec2(0.5);
     let height: f32 = textureSampleBaseClampToEdge(heightmap, samp, uv).x;
 
+    let sinR = sin(instanceRot);
+    let cosR = cos(instanceRot);
+    let rotM = mat3x3(
+        cosR,
+        0.0,
+        sinR,
+        0.0,
+        1.0,
+        0.0,
+        -sinR,
+        0.0,
+        cosR,
+    );
+
     let origin = vec3(instancePos.x, height * scaleY, instancePos.y);
-    let pos = vertexPos * 0.1 + origin;
+    let pos = rotM * vertexPos * 0.1 + origin;
     return VertexOutput(
         scene.mvp * vec4(pos, 1.0),
         height,

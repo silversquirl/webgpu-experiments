@@ -1,6 +1,6 @@
 import { buildAliasTables, sampleAliasTables } from "./alias";
 import SHADER_SOURCE from "./foliage.wgsl";
-import { Model, Pass, SCENE_DATA_SIZE, State, imageData, model, texture } from "./utils";
+import { Model, Pass, SCENE_DATA_SIZE, State, TAU, imageData, model, texture } from "./utils";
 
 const INSTANCE_COUNT = 100_000;
 const GRASS_AREA = 80;
@@ -70,13 +70,18 @@ export class Foliage implements Pass {
             ],
           },
           {
-            arrayStride: 2 * 4,
+            arrayStride: 3 * 4,
             stepMode: "instance",
             attributes: [
               {
                 format: "float32x2",
                 offset: 0,
                 shaderLocation: 1,
+              },
+              {
+                format: "float32",
+                offset: 2 * 4,
+                shaderLocation: 2,
               },
             ],
           },
@@ -109,7 +114,7 @@ export class Foliage implements Pass {
     console.timeEnd("build alias");
     // Generate random instance buffer
     const instanceBuf = state.device.createBuffer({
-      size: INSTANCE_COUNT * 2 * 4,
+      size: INSTANCE_COUNT * 3 * 4,
       usage: GPUBufferUsage.VERTEX,
       mappedAtCreation: true,
     });
@@ -121,8 +126,11 @@ export class Foliage implements Pass {
       const idx = sampleAliasTables(prob, alias, Math.random());
       const x = idx % heatmapData.width;
       const y = Math.floor(idx / heatmapData.width);
-      instanceData[instance * 2 + 0] = x * factorX - offset;
-      instanceData[instance * 2 + 1] = y * factorY - offset;
+      instanceData[instance * 3 + 0] = x * factorX - offset;
+      instanceData[instance * 3 + 1] = y * factorY - offset;
+
+      const angle = Math.random() * TAU;
+      instanceData[instance * 3 + 2] = angle;
     }
     instanceBuf.unmap();
 
