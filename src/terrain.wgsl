@@ -16,6 +16,7 @@ struct VertexOutput {
 override width: u32;
 override height_log2: u32;
 override scale: f32 = 1.0;
+override scaleY: f32 = 20.0;
 
 fn gridCoord(i: u32) -> vec2u {
     let height = 1u << height_log2;
@@ -41,7 +42,7 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     let xy = (coord - offset) * scale;
 
     return VertexOutput(
-        scene.mvp * vec4(xy.x, height * 10.0, xy.y, 1.0),
+        scene.mvp * vec4(xy.x, height * scaleY, xy.y, 1.0),
         uv,
         index,
     );
@@ -51,5 +52,7 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
 fn fragment(@location(0) uv: vec2f, @location(1) @interpolate(flat) vertId: u32) -> @location(0) vec4f {
     let texel = textureSample(surface, samp, uv);
     return texel;
+    // let x = select(uv, vec2(1.0) + uv, uv < vec2(0.0));
+    // return vec4(x, 0.0, 0.0);
     // return vec4(0.0, f32(vertId & 1u), 0.0, 1.0);
 }

@@ -9,6 +9,8 @@ export interface State {
   sceneData: ArrayBuffer;
   sceneDataBuf: GPUBuffer;
 
+  trilinearSampler: GPUSampler;
+
   canvas: HTMLCanvasElement;
   context: GPUCanvasContext;
 
@@ -36,24 +38,49 @@ export function rgba(color: string): Color {
   return [r, g, b, a];
 }
 
+const imageContentCache: Map<string, Promise<ImageBitmap>> = new Map();
+const imageTextureCache: Map<string, GPUTexture> = new Map();
+
 // Returns a texture that will be filled with the loaded image data after the next queue flush
 export async function texture(
   state: State,
   usage: GPUTextureUsageFlags,
   url: string,
 ): Promise<GPUTexture> {
-  const res = await fetch(url);
-  if (res.status !== 200) {
-    throw new Error(`failed to load texture at '${url}': ${res.statusText}`);
+  if (
+    (usage & GPUTextureUsage.COPY_DST) !== 0 ||
+    (usage & GPUTextureUsage.RENDER_ATTACHMENT) !== 0
+  ) {
+    throw new Error("Loaded texture cannot be writeable");
   }
-  const img = await createImageBitmap(await res.blob());
 
-  const tex = state.device.createTexture({
-    size: [img.width, img.height],
-    format: state.preferredFormat,
-    // TODO: check if it's more efficient to upload to a separate RENDER_ATTACHMENT texture and then copy across
-    usage: usage | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-  });
+  let pendingImg = imageContentCache.get(url);
+  if (pendingImg === undefined) {
+    // Not cached; load it
+    pendingImg = fetch(url)
+      .then((res) => {
+        if (res.status !== 200) {
+          throw new Error(`failed to load texture at '${url}': ${res.statusText}`);
+        }
+        return res.blob();
+      })
+      .then(createImageBitmap);
+    imageContentCache.set(url, pendingImg);
+  }
+  const img = await pendingImg;
+
+  const texKey = `${usage}:${url}`;
+  let tex = imageTextureCache.get(texKey);
+  if (tex === undefined) {
+    tex = state.device.createTexture({
+      size: [img.width, img.height],
+      format: state.preferredFormat,
+      // TODO: check if it's more efficient to upload to a separate RENDER_ATTACHMENT texture and then copy across
+      // FIXME: having these flags here also makes the texture mutable, which is bad because we cache it
+      usage: usage | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    imageTextureCache.set(texKey, tex);
+  }
 
   state.device.queue.copyExternalImageToTexture(
     { source: img },
@@ -68,6 +95,7 @@ export async function texture(
 }
 
 // Super primitive binary STL loader
+// TODO: caching
 export async function model(state: State, usage: GPUBufferUsageFlags, url: string): Promise<Model> {
   const res = await fetch(url);
   if (res.status !== 200) {

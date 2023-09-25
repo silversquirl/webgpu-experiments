@@ -77,19 +77,13 @@ export class Terrain implements Pass {
       // depthStencil: {},
     });
 
-    const trilinearSampler = state.device.createSampler({
-      magFilter: "linear",
-      minFilter: "linear",
-      mipmapFilter: "linear",
-    });
-
     const binds = state.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: state.sceneDataBuf } },
-        { binding: 1, resource: trilinearSampler },
-        { binding: 2, resource: (await heightmapTex).createView({}) },
-        { binding: 3, resource: (await surfaceTex).createView({}) },
+        { binding: 1, resource: state.trilinearSampler },
+        { binding: 2, resource: (await heightmapTex).createView() },
+        { binding: 3, resource: (await surfaceTex).createView() },
       ],
     });
 

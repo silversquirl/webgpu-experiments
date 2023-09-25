@@ -43,12 +43,21 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     }),
 
+    trilinearSampler: device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+      mipmapFilter: "linear",
+    }),
+
     canvas,
     context,
 
     camera: {
       proj: mat4.perspective(mat4.create(), rad(90), canvas.width / canvas.height, 0.1, 100),
-      look: mat4.lookAt(mat4.create(), [4, 3.5, 5], [0, 1.0, 0], [0, 1, 0]),
+      // look: mat4.lookAt(mat4.create(), [4, 3.5, 5], [0, 1.0, 0], [0, 1, 0]),
+      // look: mat4.lookAt(mat4.create(), [50, 30, 0], [0, 1.0, 0], [0, 1, 0]),
+      // look: mat4.lookAt(mat4.create(), [0, 30, 50], [0, 1.0, 0], [0, 1, 0]),
+      look: mat4.lookAt(mat4.create(), [1, 50, 0], [0, 1.0, 0], [0, 1, 0]),
     },
   };
 }
@@ -64,9 +73,10 @@ const PASSES: PassFactory[] = [
 
 // Init engine
 console.time("engine init");
-const state = await init({ enable_profiling: true });
+const state = await init({ enable_profiling: false });
 const passes: Pass[] = await Promise.all(PASSES.map((factory) => factory(state)));
 console.timeEnd("engine init");
+
 console.time("gpu init");
 await state.device.queue.onSubmittedWorkDone();
 console.timeEnd("gpu init");
@@ -109,24 +119,28 @@ const draw = async (dt: DOMHighResTimeStamp) => {
     );
 
     const curDev = Math.abs(average - lastFrame);
-    const msg = curDev > stdDev ? console.warn : console.log;
+    const outlier = curDev > stdDev;
 
-    msg(`${lastFrame.toFixed(3)}ms (${average.toFixed()}ms avg)`);
+    const frameIdx = frameCount - 1;
+    if (state.enable_profiling || outlier || frameIdx % 20 === 0) {
+      const msg = outlier ? console.warn : console.log;
+      msg(`frame ${frameIdx}: ${lastFrame.toFixed(2)}ms (${average.toFixed(2)}ms avg)`);
 
-    const profileSections = await profiler.read();
-    if (profileSections.length > 0) {
-      let results = "Profile for last frame:\n";
-      const deltas = [];
-      for (const [idx, section] of profileSections.entries()) {
-        const delta = section.end - section.start;
-        const deltaMs = Number(delta) / 1_000_000;
-        results += `- ${deltaMs.toFixed(5)}ms`;
-        // results += ` (start: ${section.start}; end: ${section.end})`;
-        results += "\n";
+      const profileSections = await profiler.read();
+      if (profileSections.length > 0) {
+        let results = "Profile for last frame:\n";
+        const deltas = [];
+        for (const [idx, section] of profileSections.entries()) {
+          const delta = section.end - section.start;
+          const deltaMs = Number(delta) / 1_000_000;
+          results += `- ${deltaMs.toFixed(5)}ms`;
+          // results += ` (start: ${section.start}; end: ${section.end})`;
+          results += "\n";
 
-        totalProfileSections[idx] = (totalProfileSections[idx] ?? 0) + deltaMs;
+          totalProfileSections[idx] = (totalProfileSections[idx] ?? 0) + deltaMs;
+        }
+        msg(results);
       }
-      msg(results);
     }
   }
   frameCount++;
@@ -178,4 +192,4 @@ const draw = async (dt: DOMHighResTimeStamp) => {
     requestAnimationFrame(draw);
   }
 };
-draw(startTime);
+requestAnimationFrame(draw);

@@ -1,8 +1,12 @@
 import SHADER_SOURCE from "./foliage.wgsl";
-import { Model, Pass, SCENE_DATA_SIZE, State, model } from "./utils";
+import { Model, Pass, SCENE_DATA_SIZE, State, model, texture } from "./utils";
 
 const INSTANCE_COUNT = 100_000;
-const GRASS_AREA = 160;
+const GRASS_AREA = 80;
+
+const CONSTANTS = {
+  scale: 2.0 / GRASS_AREA,
+};
 
 export class Foliage implements Pass {
   constructor(
@@ -13,8 +17,13 @@ export class Foliage implements Pass {
   ) {}
 
   static async create(state: State): Promise<Foliage> {
-    // Start loading model immediately
+    // Start loading assets immediately
     const bladeModel = model(state, GPUBufferUsage.VERTEX, "/assets/grass_blade.stl");
+    const heightmapTex = texture(
+      state,
+      GPUTextureUsage.TEXTURE_BINDING,
+      "/assets/terrain_heightmap.png",
+    );
 
     const layout = state.device.createPipelineLayout({
       bindGroupLayouts: [
@@ -25,6 +34,8 @@ export class Foliage implements Pass {
               visibility: GPUShaderStage.VERTEX,
               buffer: { minBindingSize: SCENE_DATA_SIZE },
             },
+            { binding: 1, visibility: GPUShaderStage.VERTEX, sampler: {} },
+            { binding: 2, visibility: GPUShaderStage.VERTEX, texture: {} },
           ],
         }),
       ],
@@ -44,6 +55,7 @@ export class Foliage implements Pass {
       vertex: {
         module: shader,
         entryPoint: "vertex",
+        constants: CONSTANTS,
         buffers: [
           {
             arrayStride: 3 * 4,
@@ -79,7 +91,11 @@ export class Foliage implements Pass {
 
     const binds = state.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: { buffer: state.sceneDataBuf } }],
+      entries: [
+        { binding: 0, resource: { buffer: state.sceneDataBuf } },
+        { binding: 1, resource: state.trilinearSampler },
+        { binding: 2, resource: (await heightmapTex).createView() },
+      ],
     });
 
     // Generate random instance buffer
@@ -91,6 +107,7 @@ export class Foliage implements Pass {
     const instanceData = new Float32Array(instanceBuf.getMappedRange());
     for (let instance = 0; instance < INSTANCE_COUNT; instance++) {
       for (let i = 0; i < 2; i++) {
+        // FIXME: it's sparser in a strip down the middle of the Z axis FOR SOME REASON??? wtf
         instanceData[instance * 2 + i] = (Math.random() - 0.5) * GRASS_AREA;
       }
     }
