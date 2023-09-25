@@ -94,6 +94,26 @@ export async function texture(
   return tex;
 }
 
+export async function imageData(url: string): Promise<ImageData> {
+  const img: HTMLImageElement = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = (err) => reject(err);
+    img.src = url;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext("2d");
+  if (ctx === null) {
+    throw new Error("failed to create canvas context");
+  }
+  ctx.drawImage(img, 0, 0);
+
+  return ctx.getImageData(0, 0, img.width, img.height);
+}
+
 // Super primitive binary STL loader
 // TODO: caching
 export async function model(state: State, usage: GPUBufferUsageFlags, url: string): Promise<Model> {

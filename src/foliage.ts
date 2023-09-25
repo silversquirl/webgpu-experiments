@@ -1,5 +1,6 @@
+import { buildAliasTables, sampleAliasTables } from "./alias";
 import SHADER_SOURCE from "./foliage.wgsl";
-import { Model, Pass, SCENE_DATA_SIZE, State, model, texture } from "./utils";
+import { Model, Pass, SCENE_DATA_SIZE, State, imageData, model, texture } from "./utils";
 
 const INSTANCE_COUNT = 100_000;
 const GRASS_AREA = 80;
@@ -24,6 +25,7 @@ export class Foliage implements Pass {
       GPUTextureUsage.TEXTURE_BINDING,
       "/assets/terrain_heightmap.png",
     );
+    const heatmap = imageData("/assets/terrain_heightmap.png"); // TODO: use a proper heatmap texture
 
     const layout = state.device.createPipelineLayout({
       bindGroupLayouts: [
@@ -98,6 +100,13 @@ export class Foliage implements Pass {
       ],
     });
 
+    // Build random distribution tables
+    const heatmapData = await heatmap;
+    console.time("build alias");
+    const prob = new Float32Array(heatmapData.width * heatmapData.height);
+    const alias = new Uint32Array(heatmapData.width * heatmapData.height);
+    const max = buildAliasTables(prob, alias, heatmapData);
+    console.timeEnd("build alias");
     // Generate random instance buffer
     const instanceBuf = state.device.createBuffer({
       size: INSTANCE_COUNT * 2 * 4,
@@ -105,11 +114,15 @@ export class Foliage implements Pass {
       mappedAtCreation: true,
     });
     const instanceData = new Float32Array(instanceBuf.getMappedRange());
+    const factorX = GRASS_AREA / heatmapData.width;
+    const factorY = GRASS_AREA / heatmapData.height;
+    const offset = GRASS_AREA / 2;
     for (let instance = 0; instance < INSTANCE_COUNT; instance++) {
-      for (let i = 0; i < 2; i++) {
-        // FIXME: it's sparser in a strip down the middle of the Z axis FOR SOME REASON??? wtf
-        instanceData[instance * 2 + i] = (Math.random() - 0.5) * GRASS_AREA;
-      }
+      const idx = sampleAliasTables(prob, alias, Math.random());
+      const x = idx % heatmapData.width;
+      const y = Math.floor(idx / heatmapData.width);
+      instanceData[instance * 2 + 0] = x * factorX - offset;
+      instanceData[instance * 2 + 1] = y * factorY - offset;
     }
     instanceBuf.unmap();
 
