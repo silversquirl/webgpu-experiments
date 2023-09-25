@@ -1,9 +1,8 @@
-// @ts-expect-error
 import SHADER_SOURCE from "./foliage.wgsl";
 import { Model, Pass, SCENE_DATA_SIZE, State, model } from "./utils";
 
-const INSTANCE_COUNT = 100;
-const GRASS_AREA = 10;
+const INSTANCE_COUNT = 100_000;
+const GRASS_AREA = 160;
 
 export class Foliage implements Pass {
   constructor(
@@ -20,7 +19,13 @@ export class Foliage implements Pass {
     const layout = state.device.createPipelineLayout({
       bindGroupLayouts: [
         state.device.createBindGroupLayout({
-          entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { minBindingSize: SCENE_DATA_SIZE } }],
+          entries: [
+            {
+              binding: 0,
+              visibility: GPUShaderStage.VERTEX,
+              buffer: { minBindingSize: SCENE_DATA_SIZE },
+            },
+          ],
         }),
       ],
     });
@@ -86,7 +91,7 @@ export class Foliage implements Pass {
     const instanceData = new Float32Array(instanceBuf.getMappedRange());
     for (let instance = 0; instance < INSTANCE_COUNT; instance++) {
       for (let i = 0; i < 2; i++) {
-        instanceData[instance * 2 + i] = (Math.random() - 0.5) * GRASS_AREA * 0.5;
+        instanceData[instance * 2 + i] = (Math.random() - 0.5) * GRASS_AREA;
       }
     }
     instanceBuf.unmap();

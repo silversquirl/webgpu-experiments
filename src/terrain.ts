@@ -1,4 +1,3 @@
-// @ts-expect-error
 import SHADER_SOURCE from "./terrain.wgsl";
 import { Pass, SCENE_DATA_SIZE, State, texture } from "./utils";
 
@@ -21,15 +20,31 @@ export class Terrain implements Pass {
   constructor(readonly pipeline: GPURenderPipeline, readonly binds: GPUBindGroup) {}
   static async create(state: State): Promise<Terrain> {
     // Start loading textures immediately
-    const heightmapTex = texture(state, GPUTextureUsage.TEXTURE_BINDING, "/assets/terrain_heightmap.png");
-    const surfaceTex = texture(state, GPUTextureUsage.TEXTURE_BINDING, "/assets/terrain_surface.png");
+    const heightmapTex = texture(
+      state,
+      GPUTextureUsage.TEXTURE_BINDING,
+      "/assets/terrain_heightmap.png",
+    );
+    const surfaceTex = texture(
+      state,
+      GPUTextureUsage.TEXTURE_BINDING,
+      "/assets/terrain_surface.png",
+    );
 
     const layout = state.device.createPipelineLayout({
       bindGroupLayouts: [
         state.device.createBindGroupLayout({
           entries: [
-            { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { minBindingSize: SCENE_DATA_SIZE } },
-            { binding: 1, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: {} },
+            {
+              binding: 0,
+              visibility: GPUShaderStage.VERTEX,
+              buffer: { minBindingSize: SCENE_DATA_SIZE },
+            },
+            {
+              binding: 1,
+              visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+              sampler: {},
+            },
             { binding: 2, visibility: GPUShaderStage.VERTEX, texture: {} },
             { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {} },
           ],

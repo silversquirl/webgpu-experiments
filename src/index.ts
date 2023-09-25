@@ -71,19 +71,24 @@ console.time("gpu init");
 await state.device.queue.onSubmittedWorkDone();
 console.timeEnd("gpu init");
 
-const profiler: Profiler = state.enable_profiling ? new GPUProfiler(state.device, passes.length) : new DummyProfiler();
+const profiler: Profiler = state.enable_profiling
+  ? new GPUProfiler(state.device, passes.length)
+  : new DummyProfiler();
 
 const startTime = performance.now();
 let frameCount = 0;
 let prevFrame = startTime;
+const allFrames: number[] = [];
 const totalProfileSections = new Array(profiler.sectionCount);
 const draw = async (dt: DOMHighResTimeStamp) => {
   if (dt - startTime > 2000) {
-    let results = "Average profile timings:\n";
-    for (const delta of totalProfileSections) {
-      results += `- ${delta / frameCount}ms\n`;
+    if (totalProfileSections.length > 0) {
+      let results = "Average profile timings:\n";
+      for (const delta of totalProfileSections) {
+        results += `- ${(delta / frameCount).toFixed(5)}ms\n`;
+      }
+      console.log(results);
     }
-    console.log(results);
     return;
   }
 
@@ -93,25 +98,35 @@ const draw = async (dt: DOMHighResTimeStamp) => {
 
   if (frameCount > 0) {
     const lastFrame = dt - prevFrame;
-    const avgFrame = (dt - startTime) / frameCount;
-    console.log(`${lastFrame}ms`);
-    console.log(`${avgFrame}ms avg`);
+    allFrames.push(lastFrame);
+
+    const average = allFrames.reduce((x, y) => x + y) / allFrames.length;
+    const stdDev = Math.sqrt(
+      allFrames
+        .map((v) => average - v)
+        .map((v) => v * v)
+        .reduce((x, y) => x + y),
+    );
+
+    const curDev = Math.abs(average - lastFrame);
+    const msg = curDev > stdDev ? console.warn : console.log;
+
+    msg(`${lastFrame.toFixed(3)}ms (${average.toFixed()}ms avg)`);
 
     const profileSections = await profiler.read();
     if (profileSections.length > 0) {
       let results = "Profile for last frame:\n";
+      const deltas = [];
       for (const [idx, section] of profileSections.entries()) {
         const delta = section.end - section.start;
         const deltaMs = Number(delta) / 1_000_000;
-        results += `- ${deltaMs}ms (start at ${section.start}; end at ${section.end})\n`;
+        results += `- ${deltaMs.toFixed(5)}ms`;
+        // results += ` (start: ${section.start}; end: ${section.end})`;
+        results += "\n";
 
         totalProfileSections[idx] = (totalProfileSections[idx] ?? 0) + deltaMs;
       }
-      if (lastFrame > avgFrame) {
-        console.warn(results);
-      } else {
-        console.log(results);
-      }
+      msg(results);
     }
   }
   frameCount++;
@@ -134,8 +149,6 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   };
 
   const encoder = state.device.createCommandEncoder({});
-
-  let queryId = 0;
   const prof = profiler.beginFrame(encoder);
 
   for (const pass of passes) {
@@ -150,7 +163,6 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   }
 
   prof.finish();
-
   const buf = encoder.finish();
   state.device.queue.submit([buf]);
 

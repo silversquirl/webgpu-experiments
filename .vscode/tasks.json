@@ -1,29 +1,26 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "Build (watch)",
-			"type": "shell",
-			"command": "bun compile --watch",
-			"isBackground": true
-		},
-		{
-			"label": "Serve",
-			"type": "shell",
-			"command": "caddy file-server --listen localhost:8080",
-			"isBackground": true
-		},
-		{
-			"label": "Build and serve",
-			"dependsOn": [
-				"Serve",
-				"Build (watch)"
-			],
-			"problemMatcher": [],
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			}
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build (watch)",
+      "type": "shell",
+      "command": "bun compile --watch",
+      "isBackground": true
+    },
+    {
+      "label": "Serve",
+      "type": "shell",
+      "command": "caddy file-server --listen localhost:8080",
+      "isBackground": true
+    },
+    {
+      "label": "Build and serve",
+      "dependsOn": ["Serve", "Build (watch)"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
 }

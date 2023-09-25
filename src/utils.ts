@@ -37,7 +37,11 @@ export function rgba(color: string): Color {
 }
 
 // Returns a texture that will be filled with the loaded image data after the next queue flush
-export async function texture(state: State, usage: GPUTextureUsageFlags, url: string): Promise<GPUTexture> {
+export async function texture(
+  state: State,
+  usage: GPUTextureUsageFlags,
+  url: string,
+): Promise<GPUTexture> {
   const res = await fetch(url);
   if (res.status !== 200) {
     throw new Error(`failed to load texture at '${url}': ${res.statusText}`);

@@ -1,7 +1,10 @@
 {
+  "files": {
+    "ignore": ["build/", "node_modules/"]
+  },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
-    "lineWidth": 120
+    "lineWidth": 100
   }
 }
