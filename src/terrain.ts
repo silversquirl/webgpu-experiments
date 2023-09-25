@@ -72,9 +72,13 @@ export class Terrain implements Pass {
       fragment: {
         module: shader,
         entryPoint: "fragment",
-        targets: [{ format: state.preferredFormat }],
+        targets: [{ format: state.targetFormat }],
       },
-      // depthStencil: {},
+      depthStencil: {
+        format: state.depthTex.format,
+        depthWriteEnabled: true,
+        depthCompare: "less",
+      },
     });
 
     const binds = state.device.createBindGroup({

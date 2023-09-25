@@ -19,13 +19,13 @@ export class Foliage implements Pass {
 
   static async create(state: State): Promise<Foliage> {
     // Start loading assets immediately
-    const bladeModel = model(state, GPUBufferUsage.VERTEX, "/assets/grass_blade.stl");
+    const bladeModel = model(state, GPUBufferUsage.VERTEX, "/assets/grass_blade.high.stl");
     const heightmapTex = texture(
       state,
       GPUTextureUsage.TEXTURE_BINDING,
       "/assets/terrain_heightmap.png",
     );
-    const heatmap = imageData("/assets/terrain_heightmap.png"); // TODO: use a proper heatmap texture
+    const heatmap = imageData("/assets/grass_heatmap.png");
 
     const layout = state.device.createPipelineLayout({
       bindGroupLayouts: [
@@ -91,9 +91,13 @@ export class Foliage implements Pass {
       fragment: {
         module: shader,
         entryPoint: "fragment",
-        targets: [{ format: state.preferredFormat }],
+        targets: [{ format: state.targetFormat }],
       },
-      // depthStencil: {},
+      depthStencil: {
+        format: state.depthTex.format,
+        depthWriteEnabled: true,
+        depthCompare: "less",
+      },
     });
 
     const binds = state.device.createBindGroup({

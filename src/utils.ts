@@ -4,7 +4,8 @@ export interface State {
   enable_profiling: boolean;
 
   device: GPUDevice;
-  preferredFormat: GPUTextureFormat;
+  targetFormat: GPUTextureFormat;
+  depthTex: GPUTexture;
 
   sceneData: ArrayBuffer;
   sceneDataBuf: GPUBuffer;
@@ -74,7 +75,7 @@ export async function texture(
   if (tex === undefined) {
     tex = state.device.createTexture({
       size: [img.width, img.height],
-      format: state.preferredFormat,
+      format: state.targetFormat,
       // TODO: check if it's more efficient to upload to a separate RENDER_ATTACHMENT texture and then copy across
       // FIXME: having these flags here also makes the texture mutable, which is bad because we cache it
       usage: usage | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,

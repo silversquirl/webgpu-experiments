@@ -24,18 +24,25 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
   const context = canvas.getContext("webgpu");
   assert(context !== null, "failed to get context");
 
-  const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
+  const targetFormat = navigator.gpu.getPreferredCanvasFormat();
   context.configure({
     device: device,
-    format: preferredFormat,
+    format: targetFormat,
     alphaMode: "premultiplied",
+  });
+
+  const depthTex = device.createTexture({
+    size: [canvas.width, canvas.height],
+    format: "depth16unorm",
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
   return {
     enable_profiling,
 
     device,
-    preferredFormat,
+    targetFormat,
+    depthTex,
 
     sceneData: new ArrayBuffer(SCENE_DATA_SIZE),
     sceneDataBuf: device.createBuffer({
@@ -54,8 +61,8 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
 
     camera: {
       proj: mat4.perspective(mat4.create(), rad(90), canvas.width / canvas.height, 0.1, 100),
-      // look: mat4.lookAt(mat4.create(), [4, 3.5, 5], [0, 1.0, 0], [0, 1, 0]),
-      look: mat4.lookAt(mat4.create(), [50, 30, 0], [0, 1.0, 0], [0, 1, 0]),
+      look: mat4.lookAt(mat4.create(), [6, 5.5, 7], [0, 1.0, 0], [0, 1, 0]),
+      // look: mat4.lookAt(mat4.create(), [50, 30, 0], [0, 1.0, 0], [0, 1, 0]),
       // look: mat4.lookAt(mat4.create(), [0, 30, 50], [0, 1.0, 0], [0, 1, 0]),
       // look: mat4.lookAt(mat4.create(), [1, 50, 0], [0, 1.0, 0], [0, 1, 0]),
     },
@@ -73,7 +80,7 @@ const PASSES: PassFactory[] = [
 
 // Init engine
 console.time("engine init");
-const state = await init({ enable_profiling: false });
+const state = await init({ enable_profiling: true });
 const passes: Pass[] = await Promise.all(PASSES.map((factory) => factory(state)));
 console.timeEnd("engine init");
 
@@ -103,7 +110,7 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   }
 
   if (!state.enable_profiling) {
-    requestAnimationFrame(draw);
+    currentAnimationFrame = requestAnimationFrame(draw);
   }
 
   if (frameCount > 0) {
@@ -154,12 +161,20 @@ const draw = async (dt: DOMHighResTimeStamp) => {
     state.device.queue.writeBuffer(state.sceneDataBuf, 0, state.sceneData);
   }
 
+  state.device.pushErrorScope("validation");
+
   const tex = state.context.getCurrentTexture();
-  const attach: GPURenderPassColorAttachment = {
+  const targetAttach: GPURenderPassColorAttachment = {
     view: tex.createView({}),
     clearValue: SKY_BLUE,
     loadOp: "clear",
     storeOp: "store",
+  };
+  const depthAttach: GPURenderPassDepthStencilAttachment = {
+    view: state.depthTex.createView({}),
+    depthClearValue: 1,
+    depthLoadOp: "clear",
+    depthStoreOp: "store",
   };
 
   const encoder = state.device.createCommandEncoder({});
@@ -167,13 +182,15 @@ const draw = async (dt: DOMHighResTimeStamp) => {
 
   for (const pass of passes) {
     const rp = encoder.beginRenderPass({
-      colorAttachments: [attach],
+      colorAttachments: [targetAttach],
+      depthStencilAttachment: depthAttach,
       timestampWrites: prof.pass(),
     });
     pass.draw(state, rp);
     rp.end();
 
-    attach.loadOp = "load";
+    targetAttach.loadOp = "load";
+    depthAttach.depthLoadOp = "load";
   }
 
   prof.finish();
@@ -188,8 +205,14 @@ const draw = async (dt: DOMHighResTimeStamp) => {
     console.timeEnd("frame draw");
   }
 
+  const err = await state.device.popErrorScope();
+  if (err !== null) {
+    cancelAnimationFrame(currentAnimationFrame);
+    throw new Error(`validation error:\n${err.message}`);
+  }
+
   if (state.enable_profiling) {
-    requestAnimationFrame(draw);
+    currentAnimationFrame = requestAnimationFrame(draw);
   }
 };
-requestAnimationFrame(draw);
+let currentAnimationFrame = requestAnimationFrame(draw);

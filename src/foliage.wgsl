@@ -11,8 +11,7 @@ override scaleY: f32 = 20.0;
 
 struct VertexOutput {
     @builtin(position) pos: vec4f,
-    @location(0) height: f32,
-    @location(1) uv: vec2f,
+    @location(0) localY: f32,
 }
 
 @vertex
@@ -35,17 +34,16 @@ fn vertex(@location(0) vertexPos: vec3f, @location(1) instancePos: vec2f, @locat
     );
 
     let origin = vec3(instancePos.x, height * scaleY, instancePos.y);
-    let pos = rotM * vertexPos * 0.1 + origin;
+    let pos = rotM * vertexPos + origin;
     return VertexOutput(
         scene.mvp * vec4(pos, 1.0),
-        height,
-        uv
+        vertexPos.y,
     );
 }
 
 @fragment
-fn fragment(@location(0) height: f32, @location(1) uv: vec2f) -> @location(0) vec4f {
-    return vec4(0.0, 1.0, 0.0, 1.0);
-    // let x = select(uv, vec2(1.0) + uv, uv < vec2(0.0));
-    // return vec4(x, 0.0, 0.0);
+fn fragment(@location(0) localY: f32) -> @location(0) vec4f {
+    const baseColor = vec4(0.0, 0.25, 0.0, 1.0);
+    const tipColor = vec4(0.0, 1.0, 0.0, 1.0);
+    return mix(baseColor, tipColor, localY);
 }
