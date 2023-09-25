@@ -17,7 +17,15 @@ export interface State {
 
   camera: { proj: mat4; look: mat4 };
 }
-export const SCENE_DATA_SIZE = 4 * 4 * 4; // mvp: mat4x4<f32>
+export const SCENE_DATA_SIZE = alignUp(
+  16,
+  4 * 4 * 4 + // mvp: mat4x4<f32>
+    4, // time: f32
+);
+
+function alignUp(align: number, x: number): number {
+  return -(-x & -align);
+}
 
 export interface Pass {
   draw(state: State, pass: GPURenderPassEncoder): void;

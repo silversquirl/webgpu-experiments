@@ -64,7 +64,7 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
       look: mat4.lookAt(mat4.create(), [6, 5.5, 7], [0, 1.0, 0], [0, 1, 0]),
       // look: mat4.lookAt(mat4.create(), [50, 30, 0], [0, 1.0, 0], [0, 1, 0]),
       // look: mat4.lookAt(mat4.create(), [0, 30, 50], [0, 1.0, 0], [0, 1, 0]),
-      // look: mat4.lookAt(mat4.create(), [1, 50, 0], [0, 1.0, 0], [0, 1, 0]),
+      // look: mat4.lookAt(mat4.create(), [1, 40, 0], [0, 1.0, 0], [0, 1, 0]),
     },
   };
 }
@@ -80,7 +80,7 @@ const PASSES: PassFactory[] = [
 
 // Init engine
 console.time("engine init");
-const state = await init({ enable_profiling: true });
+const state = await init({ enable_profiling: false });
 const passes: Pass[] = await Promise.all(PASSES.map((factory) => factory(state)));
 console.timeEnd("engine init");
 
@@ -98,7 +98,7 @@ let prevFrame = startTime;
 const allFrames: number[] = [];
 const totalProfileSections = new Array(profiler.sectionCount);
 const draw = async (dt: DOMHighResTimeStamp) => {
-  if (dt - startTime > 2000) {
+  if (state.enable_profiling && dt - startTime > 5000) {
     if (totalProfileSections.length > 0) {
       let results = "Average profile timings:\n";
       for (const delta of totalProfileSections) {
@@ -157,6 +157,9 @@ const draw = async (dt: DOMHighResTimeStamp) => {
     // Generate MVP matrix
     const mvp = new Float32Array(state.sceneData, 0, 4 * 4);
     mat4.mul(mvp, state.camera.proj, state.camera.look);
+    // Update current time
+    const data = new DataView(state.sceneData);
+    data.setFloat32(4 * 4 * 4, (dt - startTime) / 1000, true);
     // Upload scene data
     state.device.queue.writeBuffer(state.sceneDataBuf, 0, state.sceneData);
   }

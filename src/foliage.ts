@@ -34,7 +34,7 @@ export class Foliage implements Pass {
             {
               binding: 0,
               visibility: GPUShaderStage.VERTEX,
-              buffer: { minBindingSize: SCENE_DATA_SIZE },
+              buffer: {},
             },
             { binding: 1, visibility: GPUShaderStage.VERTEX, sampler: {} },
             { binding: 2, visibility: GPUShaderStage.VERTEX, texture: {} },

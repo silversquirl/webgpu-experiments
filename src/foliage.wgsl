@@ -1,5 +1,6 @@
 struct SceneData {
     mvp: mat4x4<f32>,
+    time: f32,
 }
 
 @group(0) @binding(0) var<uniform> scene: SceneData;
@@ -25,19 +26,37 @@ fn vertex(@location(0) vertexPos: vec3f, @location(1) instancePos: vec2f, @locat
         cosR,
         0.0,
         sinR,
+        //
         0.0,
         1.0,
         0.0,
+        //
         -sinR,
         0.0,
         cosR,
     );
 
     let origin = vec3(instancePos.x, height * scaleY, instancePos.y);
-    let pos = rotM * vertexPos + origin;
+    let pos = anim(instancePos, scene.time) * rotM * vertexPos + origin;
     return VertexOutput(
         scene.mvp * vec4(pos, 1.0),
         vertexPos.y,
+    );
+}
+
+fn anim(pos: vec2f, time: f32) -> mat3x3<f32> {
+    return mat3x3(
+        1.0,
+        0.0,
+        0.0,
+        //
+        0.3 * sin(time + 0.5 * pos.x),
+        1.0,
+        -0.3 * sin(time + 0.5 * pos.y),
+        //
+        0.0,
+        0.0,
+        1.0,
     );
 }
 

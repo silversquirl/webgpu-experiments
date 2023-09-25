@@ -38,7 +38,7 @@ export class Terrain implements Pass {
             {
               binding: 0,
               visibility: GPUShaderStage.VERTEX,
-              buffer: { minBindingSize: SCENE_DATA_SIZE },
+              buffer: {},
             },
             {
               binding: 1,
