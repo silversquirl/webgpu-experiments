@@ -1,9 +1,11 @@
 {
   "name": "grass",
   "scripts": {
-    "compile": "bun build --outdir build --target browser --loader .wgsl:text src/index.ts"
+    "compile": "bun build --outdir build --target browser --loader .wgsl:text src/index.ts",
+    "serve": "bunx @squirl/nova --loader=.wgsl:text"
   },
   "devDependencies": {
+    "@squirl/nova": "^0.1.4",
     "@webgpu/types": "^0.1.34"
   },
   "dependencies": {

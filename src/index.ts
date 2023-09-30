@@ -219,3 +219,5 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   }
 };
 let currentAnimationFrame = requestAnimationFrame(draw);
+
+window.stop = () => cancelAnimationFrame(currentAnimationFrame);

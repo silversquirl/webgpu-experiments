@@ -10,12 +10,18 @@
     {
       "label": "Serve",
       "type": "shell",
-      "command": "caddy file-server --listen localhost:8080",
+      "command": "bun serve",
       "isBackground": true
     },
     {
-      "label": "Build and serve",
-      "dependsOn": ["Serve", "Build (watch)"],
+      "label": "Launch browser",
+      "type": "shell",
+      "command": "chrome.exe --enable-dawn-features=allow_unsafe_apis http://localhost:3000",
+      "isBackground": true
+    },
+    {
+      "label": "Launch",
+      "dependsOn": ["Serve", "Launch browser"],
       "problemMatcher": [],
       "group": {
         "kind": "build",
