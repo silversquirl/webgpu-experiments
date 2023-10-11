@@ -10,18 +10,26 @@ struct SceneData {
 override scale: f32;
 override scaleY: f32 = 20.0;
 
+struct VertexInput {
+    @location(0) pos: vec3f,
+}
+struct InstanceInput {
+    @location(1) pos: vec2f,
+    @location(2) rot: f32,
+    @location(3) height: f32,
+}
 struct VertexOutput {
     @builtin(position) pos: vec4f,
     @location(0) localY: f32,
 }
 
 @vertex
-fn vertex(@location(0) vertexPos: vec3f, @location(1) instancePos: vec2f, @location(2) instanceRot: f32) -> VertexOutput {
-    let uv = (instancePos * vec2(scale) + vec2(1.0)) * vec2(0.5);
-    let height: f32 = textureSampleBaseClampToEdge(heightmap, samp, uv).x;
+fn vertex(vert: VertexInput, inst: InstanceInput) -> VertexOutput {
+    let uv = (inst.pos * vec2(scale) + vec2(1.0)) * vec2(0.5);
+    let y: f32 = textureSampleBaseClampToEdge(heightmap, samp, uv).x;
 
-    let sinR = sin(instanceRot);
-    let cosR = cos(instanceRot);
+    let sinR = sin(inst.rot);
+    let cosR = cos(inst.rot);
     let rotM = mat3x3(
         cosR,
         0.0,
@@ -36,11 +44,12 @@ fn vertex(@location(0) vertexPos: vec3f, @location(1) instancePos: vec2f, @locat
         cosR,
     );
 
-    let origin = vec3(instancePos.x, height * scaleY, instancePos.y);
-    let pos = anim(instancePos, scene.time) * rotM * vertexPos + origin;
+    let origin = vec3(inst.pos.x, y * scaleY, inst.pos.y);
+    let scale = vec3(1.0, inst.height, 1.0);
+    let pos = anim(inst.pos, scene.time * 1.3) * rotM * (vert.pos * scale) + origin;
     return VertexOutput(
         scene.mvp * vec4(pos, 1.0),
-        vertexPos.y,
+        vert.pos.y,
     );
 }
 

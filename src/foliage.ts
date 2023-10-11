@@ -70,7 +70,7 @@ export class Foliage implements Pass {
             ],
           },
           {
-            arrayStride: 3 * 4,
+            arrayStride: 4 * 4,
             stepMode: "instance",
             attributes: [
               {
@@ -82,6 +82,11 @@ export class Foliage implements Pass {
                 format: "float32",
                 offset: 2 * 4,
                 shaderLocation: 2,
+              },
+              {
+                format: "float32",
+                offset: 3 * 4,
+                shaderLocation: 3,
               },
             ],
           },
@@ -118,7 +123,7 @@ export class Foliage implements Pass {
     console.timeEnd("build alias");
     // Generate random instance buffer
     const instanceBuf = state.device.createBuffer({
-      size: INSTANCE_COUNT * 3 * 4,
+      size: INSTANCE_COUNT * 4 * 4,
       usage: GPUBufferUsage.VERTEX,
       mappedAtCreation: true,
     });
@@ -130,11 +135,15 @@ export class Foliage implements Pass {
       const idx = sampleAliasTables(prob, alias, Math.random());
       const x = idx % heatmapData.width;
       const y = Math.floor(idx / heatmapData.width);
-      instanceData[instance * 3 + 0] = x * factorX - offset;
-      instanceData[instance * 3 + 1] = y * factorY - offset;
+      instanceData[instance * 4 + 0] = x * factorX - offset;
+      instanceData[instance * 4 + 1] = y * factorY - offset;
 
       const angle = Math.random() * TAU;
-      instanceData[instance * 3 + 2] = angle;
+      instanceData[instance * 4 + 2] = angle;
+
+      // TODO
+      const height = 1.0;
+      instanceData[instance * 4 + 3] = height;
     }
     instanceBuf.unmap();
 

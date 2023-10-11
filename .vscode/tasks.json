@@ -16,7 +16,7 @@
     {
       "label": "Launch browser",
       "type": "shell",
-      "command": "chrome.exe --enable-dawn-features=allow_unsafe_apis http://localhost:3000",
+      "command": "chrome.exe --enable-dawn-features=allow_unsafe_apis --enable-webgpu-developer-features http://localhost:3000",
       "isBackground": true
     },
     {
