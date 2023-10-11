@@ -133,6 +133,7 @@ export class Foliage implements Pass {
     const offset = GRASS_AREA / 2;
     for (let instance = 0; instance < INSTANCE_COUNT; instance++) {
       const idx = sampleAliasTables(prob, alias, Math.random());
+      const value = heatmapData.data[idx * 4];
       const x = idx % heatmapData.width;
       const y = Math.floor(idx / heatmapData.width);
       instanceData[instance * 4 + 0] = x * factorX - offset;
@@ -141,8 +142,7 @@ export class Foliage implements Pass {
       const angle = Math.random() * TAU;
       instanceData[instance * 4 + 2] = angle;
 
-      // TODO
-      const height = 1.0;
+      const height = 0.4 + value * (1 / max);
       instanceData[instance * 4 + 3] = height;
     }
     instanceBuf.unmap();
