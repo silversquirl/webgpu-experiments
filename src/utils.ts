@@ -1,4 +1,4 @@
-import { mat4 } from "gl-matrix";
+import { ReadonlyVec2, mat4, vec2 } from "gl-matrix";
 
 export interface State {
   enable_profiling: boolean;
@@ -15,7 +15,12 @@ export interface State {
   canvas: HTMLCanvasElement;
   context: GPUCanvasContext;
 
-  camera: { proj: mat4; look: mat4 };
+  camera: {
+    proj: mat4;
+    look: mat4;
+    pos: vec2;
+    dir: vec2;
+  };
 }
 export const SCENE_DATA_SIZE = alignUp(
   16,
@@ -180,4 +185,11 @@ export function formatMatrix(mat: mat4): string {
     }
   }
   return s;
+}
+
+export function complexMul(out: vec2, a: ReadonlyVec2, b: ReadonlyVec2): void {
+  const r = a[0] * b[0] - a[1] * b[1];
+  const c = a[0] * b[1] + a[1] * b[0];
+  out[0] = r;
+  out[1] = c;
 }

@@ -1,8 +1,8 @@
-import { mat4 } from "gl-matrix";
+import { ReadonlyVec2, mat4, vec2 } from "gl-matrix";
 import { Foliage } from "./foliage";
 import { DummyProfiler, GPUProfiler, Profiler } from "./profiler";
 import { Terrain } from "./terrain";
-import { assert, Pass, SCENE_DATA_SIZE, State, rad, rgba } from "./utils";
+import { assert, Pass, SCENE_DATA_SIZE, State, rad, rgba, complexMul, TAU } from "./utils";
 
 async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
   let enable_profiling = opts.enable_profiling ?? false;
@@ -37,7 +37,7 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
-  return {
+  const state: State = {
     enable_profiling,
 
     device,
@@ -61,12 +61,64 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
 
     camera: {
       proj: mat4.perspective(mat4.create(), rad(90), canvas.width / canvas.height, 0.1, 100),
-      look: mat4.lookAt(mat4.create(), [6, 5.5, 7], [0, 1.0, 0], [0, 1, 0]),
+      look: mat4.create(),
+      pos: vec2.clone([6, 7]),
+      dir: vec2.clone([1, 0]),
       // look: mat4.lookAt(mat4.create(), [50, 30, 0], [0, 1.0, 0], [0, 1, 0]),
       // look: mat4.lookAt(mat4.create(), [0, 30, 50], [0, 1.0, 0], [0, 1, 0]),
       // look: mat4.lookAt(mat4.create(), [1, 40, 0], [0, 1.0, 0], [0, 1, 0]),
     },
   };
+
+  updateCamera(state);
+  canvas.addEventListener("mousedown", (ev) => canvas.requestPointerLock());
+  canvas.addEventListener("mouseup", (ev) => {
+    if (ev.buttons === 0) {
+      document.exitPointerLock();
+    }
+  });
+
+  canvas.addEventListener("mousemove", (ev) => {
+    ev.preventDefault();
+    const move = [-ev.movementX, -ev.movementY] as const;
+    switch (ev.buttons) {
+      case 1:
+        moveCamera(state, move);
+        break;
+
+      case 2:
+        rotateCamera(state, move);
+        break;
+    }
+  });
+
+  return state;
+}
+
+function moveCamera(state: State, delta: ReadonlyVec2): void {
+  const rotatedDelta = vec2.create();
+  vec2.scale(rotatedDelta, delta, 0.01);
+  complexMul(rotatedDelta, state.camera.dir, rotatedDelta);
+  vec2.add(state.camera.pos, state.camera.pos, [-rotatedDelta[1], rotatedDelta[0]]);
+  updateCamera(state);
+}
+
+function rotateCamera(state: State, delta: ReadonlyVec2): void {
+  const x = delta[0] * (TAU / 360) * 0.2;
+  complexMul(state.camera.dir, state.camera.dir, [Math.cos(x), Math.sin(x)]);
+  updateCamera(state);
+}
+
+function updateCamera(state: State): void {
+  const at = vec2.create();
+  vec2.scaleAndAdd(at, state.camera.pos, state.camera.dir, 9);
+
+  mat4.lookAt(
+    state.camera.look,
+    [state.camera.pos[0], 5.5, state.camera.pos[1]],
+    [at[0], 1.0, at[1]],
+    [0, 1, 0],
+  );
 }
 
 const SKY_BLUE = rgba("#87CEEB");
@@ -129,7 +181,7 @@ const draw = async (dt: DOMHighResTimeStamp) => {
     const outlier = curDev > stdDev;
 
     const frameIdx = frameCount - 1;
-    if (state.enable_profiling || outlier || frameIdx % 20 === 0) {
+    if (state.enable_profiling || outlier || frameIdx % 60 === 0) {
       const msg = outlier ? console.warn : console.log;
       msg(`frame ${frameIdx}: ${lastFrame.toFixed(2)}ms (${average.toFixed(2)}ms avg)`);
 
