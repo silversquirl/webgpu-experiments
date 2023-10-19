@@ -71,7 +71,11 @@ fn anim(pos: vec2f, time: f32) -> mat3x3<f32> {
 
 @fragment
 fn fragment(@location(0) localY: f32) -> @location(0) vec4f {
-    const baseColor = vec4(0.0, 0.25, 0.0, 1.0);
-    const tipColor = vec4(0.0, 1.0, 0.0, 1.0);
-    return mix(baseColor, tipColor, localY);
+    let mat = 1u;
+    return vec4(
+        localY,
+        0.0,
+        0.0,
+        2.0,
+    );
 }

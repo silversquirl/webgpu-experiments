@@ -1,11 +1,15 @@
 import SHADER_SOURCE from "./color_correct.wgsl";
 import { generateCuspLut } from "./gamut_clip";
-import { PostPass, State } from "./utils";
+import { PostPass, State, createFullscreenPipeline } from "./utils";
 
 export class ColorCorrect implements PostPass {
   constructor(readonly pipeline: GPURenderPipeline, readonly binds: GPUBindGroup) {}
 
-  static async create(state: State, inputTex: GPUTextureView): Promise<ColorCorrect> {
+  static async create(
+    state: State,
+    inputTex: GPUTextureView,
+    outputFormat: GPUTextureFormat,
+  ): Promise<ColorCorrect> {
     const layout = state.device.createPipelineLayout({
       bindGroupLayouts: [
         state.device.createBindGroupLayout({
@@ -25,16 +29,12 @@ export class ColorCorrect implements PostPass {
       },
     });
 
-    const pipeline = await state.device.createRenderPipelineAsync({
+    const pipeline = await createFullscreenPipeline(state.device, {
       layout,
-      vertex: {
-        module: shader,
-        entryPoint: "vertex",
-      },
       fragment: {
         module: shader,
         entryPoint: "fragment",
-        targets: [{ format: state.targetFormat }],
+        targets: [{ format: outputFormat }],
       },
     });
 

@@ -19,7 +19,7 @@ export class Foliage implements DrawPass {
     readonly instanceBuf: GPUBuffer,
   ) {}
 
-  static async create(state: State): Promise<Foliage> {
+  static async create(state: State, outputFormat: GPUTextureFormat): Promise<Foliage> {
     // Start loading assets immediately
     const bladeModel = model(state, GPUBufferUsage.VERTEX, "/assets/grass_blade.high.stl");
     const heightmapTex = texture(
@@ -33,11 +33,7 @@ export class Foliage implements DrawPass {
       bindGroupLayouts: [
         state.device.createBindGroupLayout({
           entries: [
-            {
-              binding: 0,
-              visibility: GPUShaderStage.VERTEX,
-              buffer: {},
-            },
+            { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: {} },
             { binding: 1, visibility: GPUShaderStage.VERTEX, sampler: {} },
             { binding: 2, visibility: GPUShaderStage.VERTEX, texture: {} },
           ],
@@ -98,7 +94,7 @@ export class Foliage implements DrawPass {
       fragment: {
         module: shader,
         entryPoint: "fragment",
-        targets: [{ format: state.targetFormat }],
+        targets: [{ format: outputFormat }],
       },
       depthStencil: {
         format: state.depthTex.format,

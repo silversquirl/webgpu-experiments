@@ -20,35 +20,21 @@ export class Terrain implements DrawPass {
   writes_depth_buffer = true;
 
   constructor(readonly pipeline: GPURenderPipeline, readonly binds: GPUBindGroup) {}
-  static async create(state: State): Promise<Terrain> {
+  static async create(state: State, outputFormat: GPUTextureFormat): Promise<Terrain> {
     // Start loading textures immediately
     const heightmapTex = texture(
       state,
       GPUTextureUsage.TEXTURE_BINDING,
       "/assets/terrain_heightmap.png",
     );
-    const surfaceTex = texture(
-      state,
-      GPUTextureUsage.TEXTURE_BINDING,
-      "/assets/terrain_surface.png",
-    );
 
     const layout = state.device.createPipelineLayout({
       bindGroupLayouts: [
         state.device.createBindGroupLayout({
           entries: [
-            {
-              binding: 0,
-              visibility: GPUShaderStage.VERTEX,
-              buffer: {},
-            },
-            {
-              binding: 1,
-              visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-              sampler: {},
-            },
+            { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: {} },
+            { binding: 1, visibility: GPUShaderStage.VERTEX, sampler: {} },
             { binding: 2, visibility: GPUShaderStage.VERTEX, texture: {} },
-            { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {} },
           ],
         }),
       ],
@@ -74,7 +60,7 @@ export class Terrain implements DrawPass {
       fragment: {
         module: shader,
         entryPoint: "fragment",
-        targets: [{ format: state.targetFormat }],
+        targets: [{ format: outputFormat }],
       },
       depthStencil: {
         format: state.depthTex.format,
@@ -89,7 +75,6 @@ export class Terrain implements DrawPass {
         { binding: 0, resource: { buffer: state.sceneDataBuf } },
         { binding: 1, resource: state.trilinearSampler },
         { binding: 2, resource: (await heightmapTex).createView() },
-        { binding: 3, resource: (await surfaceTex).createView() },
       ],
     });
 

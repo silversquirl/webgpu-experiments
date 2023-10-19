@@ -24,6 +24,8 @@ export interface State {
   };
 }
 
+export const RENDER_FORMAT: GPUTextureFormat = "rgba16float";
+
 export const SCENE_DATA_SIZE = alignUp(
   16,
   4 * 4 * 4 + // mvp: mat4x4<f32>
@@ -198,4 +200,22 @@ export function complexMul(out: vec2, a: ReadonlyVec2, b: ReadonlyVec2): void {
   const c = a[0] * b[1] + a[1] * b[0];
   out[0] = r;
   out[1] = c;
+}
+
+import FULLSCREEN_SHADER_SOURCE from "./fullscreen.wgsl";
+let fullscreen_shader: GPUShaderModule | undefined;
+export function createFullscreenPipeline(
+  device: GPUDevice,
+  desc: Omit<GPURenderPipelineDescriptor, "vertex" | "primitive">,
+): Promise<GPURenderPipeline> {
+  if (fullscreen_shader === undefined) {
+    fullscreen_shader = device.createShaderModule({ code: FULLSCREEN_SHADER_SOURCE });
+  }
+  return device.createRenderPipelineAsync({
+    ...desc,
+    vertex: {
+      module: fullscreen_shader,
+      entryPoint: "vertex",
+    },
+  });
 }

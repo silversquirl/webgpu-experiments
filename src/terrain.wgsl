@@ -6,12 +6,10 @@ struct SceneData {
 @group(0) @binding(0) var<uniform> scene: SceneData;
 @group(0) @binding(1) var samp: sampler;
 @group(0) @binding(2) var heightmap: texture_2d<f32>;
-@group(0) @binding(3) var surface: texture_2d<f32>;
 
 struct VertexOutput {
     @builtin(position) pos: vec4f,
     @location(0) uv: vec2f,
-    @location(1) @interpolate(flat) vertId: u32,
 }
 
 override width: u32;
@@ -45,15 +43,14 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     return VertexOutput(
         scene.mvp * vec4(xy.x, height * scaleY, xy.y, 1.0),
         uv,
-        index,
     );
 }
 
 @fragment
-fn fragment(@location(0) uv: vec2f, @location(1) @interpolate(flat) vertId: u32) -> @location(0) vec4f {
-    let texel = textureSample(surface, samp, uv);
-    return texel;
-    // let x = select(uv, vec2(1.0) + uv, uv < vec2(0.0));
-    // return vec4(x, 0.0, 0.0);
-    // return vec4(0.0, f32(vertId & 1u), 0.0, 1.0);
+fn fragment(@location(0) uv: vec2f) -> @location(0) vec4f {
+    return vec4(
+        uv,
+        0.0,
+        1.0,
+    );
 }

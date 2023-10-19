@@ -12,8 +12,10 @@ import {
   complexMul,
   TAU,
   PostPass,
+  RENDER_FORMAT,
 } from "./utils";
 import { ColorCorrect } from "./color_correct";
+import { Shade } from "./shading";
 
 async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
   let enable_profiling = opts.enable_profiling ?? false;
@@ -46,7 +48,7 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
   const depthTex = device.createTexture({
     size: targetSize,
     format: "depth16unorm",
-    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
   });
 
   const state: State = {
@@ -134,36 +136,50 @@ function updateCamera(state: State): void {
   );
 }
 
-const SKY_BLUE = rgba("#87CEEB");
-
-const DRAW_PASSES: ((state: State) => Promise<DrawPass>)[] = [
+const DRAW_PASSES: ((state: State, outputFormat: GPUTextureFormat) => Promise<DrawPass>)[] = [
   // Declare render passes
   Terrain.create,
   Foliage.create,
 ];
-const POST_PASSES: ((state: State, inputColorTex: GPUTextureView) => Promise<PostPass>)[] = [
+const POST_PASSES: ((
+  state: State,
+  inputColorTex: GPUTextureView,
+  outputFormat: GPUTextureFormat,
+) => Promise<PostPass>)[] = [
   // Declare postprocessing passes
-  // Shade.create,
+  Shade.create,
   ColorCorrect.create,
 ];
 
 // Init engine
 console.time("engine init");
-const state = await init({ enable_profiling: false });
+const state = await init({
+  // enable_profiling: true,
+});
 
 const colorTargets = [0, 0].map(() => {
   const tex = state.device.createTexture({
     size: state.targetSize,
-    format: state.targetFormat,
+    format: RENDER_FORMAT,
     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
   });
-  const view = tex.createView({});
+  const view = tex.createView();
   return view;
 });
 
-const draw_passes: DrawPass[] = await Promise.all(DRAW_PASSES.map((factory) => factory(state)));
+const draw_passes: DrawPass[] = await Promise.all(
+  DRAW_PASSES.map((factory) =>
+    factory(state, POST_PASSES.length === 0 ? state.targetFormat : RENDER_FORMAT),
+  ),
+);
 const post_passes: PostPass[] = await Promise.all(
-  POST_PASSES.map((factory, i) => factory(state, colorTargets[i & 1])),
+  POST_PASSES.map((factory, i) =>
+    factory(
+      state,
+      colorTargets[i & 1],
+      i === POST_PASSES.length - 1 ? state.targetFormat : RENDER_FORMAT,
+    ),
+  ),
 );
 
 console.timeEnd("engine init");
@@ -264,15 +280,15 @@ const draw = async (dt: DOMHighResTimeStamp) => {
 
   state.device.pushErrorScope("validation");
 
-  const screenColorView = state.context.getCurrentTexture().createView({});
+  const screenColorView = state.context.getCurrentTexture().createView();
   const targetAttach: GPURenderPassColorAttachment = {
     view: post_passes.length === 0 ? screenColorView : colorTargets[0],
-    clearValue: SKY_BLUE,
+    clearValue: [0, 0, 0, 0],
     loadOp: "clear",
     storeOp: "store",
   };
   const depthAttach: GPURenderPassDepthStencilAttachment = {
-    view: state.depthTex.createView({}),
+    view: state.depthTex.createView(),
     depthClearValue: 1,
     depthLoadOp: "clear",
     depthStoreOp: "store",
