@@ -165,10 +165,6 @@ const draw_passes: DrawPass[] = await Promise.all(DRAW_PASSES.map((factory) => f
 const post_passes: PostPass[] = await Promise.all(
   POST_PASSES.map((factory, i) => factory(state, colorTargets[i & 1])),
 );
-if (post_passes.length < 1) {
-  // TODO: handle this case properly in `draw`
-  throw "At least one postprocessing pass is required";
-}
 
 console.timeEnd("engine init");
 
@@ -268,8 +264,9 @@ const draw = async (dt: DOMHighResTimeStamp) => {
 
   state.device.pushErrorScope("validation");
 
+  const screenColorView = state.context.getCurrentTexture().createView({});
   const targetAttach: GPURenderPassColorAttachment = {
-    view: colorTargets[0],
+    view: post_passes.length === 0 ? screenColorView : colorTargets[0],
     clearValue: SKY_BLUE,
     loadOp: "clear",
     storeOp: "store",
@@ -300,8 +297,7 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   for (const [idx, pass] of post_passes.entries()) {
     if (idx === post_passes.length - 1) {
       // Last pass, draw to the screen
-      const screen = state.context.getCurrentTexture();
-      targetAttach.view = screen.createView({});
+      targetAttach.view = screenColorView;
     } else {
       targetAttach.view = colorTargets[1 - (idx & 1)];
     }
