@@ -5,6 +5,7 @@ export interface State {
 
   device: GPUDevice;
   targetFormat: GPUTextureFormat;
+  targetSize: readonly [number, number];
   depthTex: GPUTexture;
 
   sceneData: ArrayBuffer;
@@ -22,6 +23,7 @@ export interface State {
     dir: vec2;
   };
 }
+
 export const SCENE_DATA_SIZE = alignUp(
   16,
   4 * 4 * 4 + // mvp: mat4x4<f32>
@@ -32,7 +34,11 @@ function alignUp(align: number, x: number): number {
   return -(-x & -align);
 }
 
-export interface Pass {
+export interface DrawPass {
+  writes_depth_buffer?: boolean;
+  draw(state: State, pass: GPURenderPassEncoder): void;
+}
+export interface PostPass {
   draw(state: State, pass: GPURenderPassEncoder): void;
 }
 

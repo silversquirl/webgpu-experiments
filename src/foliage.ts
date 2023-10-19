@@ -1,6 +1,6 @@
 import { buildAliasTables, sampleAliasTables } from "./alias";
 import SHADER_SOURCE from "./foliage.wgsl";
-import { Model, Pass, SCENE_DATA_SIZE, State, TAU, imageData, model, texture } from "./utils";
+import { Model, DrawPass, State, TAU, imageData, model, texture } from "./utils";
 
 const INSTANCE_COUNT = 100_000;
 const GRASS_AREA = 80;
@@ -9,7 +9,9 @@ const CONSTANTS = {
   scale: 2.0 / GRASS_AREA,
 };
 
-export class Foliage implements Pass {
+export class Foliage implements DrawPass {
+  writes_depth_buffer = true;
+
   constructor(
     readonly pipeline: GPURenderPipeline,
     readonly binds: GPUBindGroup,

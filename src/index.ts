@@ -2,7 +2,18 @@ import { ReadonlyVec2, mat4, vec2 } from "gl-matrix";
 import { Foliage } from "./foliage";
 import { DummyProfiler, GPUProfiler, Profiler } from "./profiler";
 import { Terrain } from "./terrain";
-import { assert, Pass, SCENE_DATA_SIZE, State, rad, rgba, complexMul, TAU } from "./utils";
+import {
+  assert,
+  DrawPass,
+  SCENE_DATA_SIZE,
+  State,
+  rad,
+  rgba,
+  complexMul,
+  TAU,
+  PostPass,
+} from "./utils";
+import { ColorCorrect } from "./color_correct";
 
 async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
   let enable_profiling = opts.enable_profiling ?? false;
@@ -31,8 +42,9 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
     alphaMode: "premultiplied",
   });
 
+  const targetSize = [canvas.width, canvas.height] as const;
   const depthTex = device.createTexture({
-    size: [canvas.width, canvas.height],
+    size: targetSize,
     format: "depth16unorm",
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
@@ -41,6 +53,7 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
     enable_profiling,
 
     device,
+    targetSize,
     targetFormat,
     depthTex,
 
@@ -123,17 +136,40 @@ function updateCamera(state: State): void {
 
 const SKY_BLUE = rgba("#87CEEB");
 
-type PassFactory = (state: State) => Promise<Pass>;
-const PASSES: PassFactory[] = [
+const DRAW_PASSES: ((state: State) => Promise<DrawPass>)[] = [
   // Declare render passes
   Terrain.create,
   Foliage.create,
+];
+const POST_PASSES: ((state: State, inputColorTex: GPUTextureView) => Promise<PostPass>)[] = [
+  // Declare postprocessing passes
+  // Shade.create,
+  ColorCorrect.create,
 ];
 
 // Init engine
 console.time("engine init");
 const state = await init({ enable_profiling: false });
-const passes: Pass[] = await Promise.all(PASSES.map((factory) => factory(state)));
+
+const colorTargets = [0, 0].map(() => {
+  const tex = state.device.createTexture({
+    size: state.targetSize,
+    format: state.targetFormat,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+  });
+  const view = tex.createView({});
+  return view;
+});
+
+const draw_passes: DrawPass[] = await Promise.all(DRAW_PASSES.map((factory) => factory(state)));
+const post_passes: PostPass[] = await Promise.all(
+  POST_PASSES.map((factory, i) => factory(state, colorTargets[i & 1])),
+);
+if (post_passes.length < 1) {
+  // TODO: handle this case properly in `draw`
+  throw "At least one postprocessing pass is required";
+}
+
 console.timeEnd("engine init");
 
 console.time("gpu init");
@@ -141,7 +177,7 @@ await state.device.queue.onSubmittedWorkDone();
 console.timeEnd("gpu init");
 
 const profiler: Profiler = state.enable_profiling
-  ? new GPUProfiler(state.device, passes.length)
+  ? new GPUProfiler(state.device, draw_passes.length + post_passes.length)
   : new DummyProfiler();
 
 const startTime = performance.now();
@@ -188,12 +224,10 @@ const draw = async (dt: DOMHighResTimeStamp) => {
       const profileSections = await profiler.read();
       if (profileSections.length > 0) {
         let results = "Profile for last frame:\n";
-        const deltas = [];
         for (const [idx, section] of profileSections.entries()) {
           const delta = section.end - section.start;
           const deltaMs = Number(delta) / 1_000_000;
           results += `- ${deltaMs.toFixed(5)}ms`;
-          // results += ` (start: ${section.start}; end: ${section.end})`;
           results += "\n";
 
           totalProfileSections[idx] = (totalProfileSections[idx] ?? 0) + deltaMs;
@@ -218,9 +252,8 @@ const draw = async (dt: DOMHighResTimeStamp) => {
 
   state.device.pushErrorScope("validation");
 
-  const tex = state.context.getCurrentTexture();
   const targetAttach: GPURenderPassColorAttachment = {
-    view: tex.createView({}),
+    view: colorTargets[0],
     clearValue: SKY_BLUE,
     loadOp: "clear",
     storeOp: "store",
@@ -235,10 +268,30 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   const encoder = state.device.createCommandEncoder({});
   const prof = profiler.beginFrame(encoder);
 
-  for (const pass of passes) {
+  for (const pass of draw_passes) {
     const rp = encoder.beginRenderPass({
       colorAttachments: [targetAttach],
-      depthStencilAttachment: depthAttach,
+      depthStencilAttachment: pass.writes_depth_buffer ? depthAttach : undefined,
+      timestampWrites: prof.pass(),
+    });
+    pass.draw(state, rp);
+    rp.end();
+
+    targetAttach.loadOp = "load";
+    depthAttach.depthLoadOp = "load";
+  }
+
+  for (const [idx, pass] of post_passes.entries()) {
+    if (idx === post_passes.length - 1) {
+      // Last pass, draw to the screen
+      const screen = state.context.getCurrentTexture();
+      targetAttach.view = screen.createView({});
+    } else {
+      targetAttach.view = colorTargets[1 - (idx & 1)];
+    }
+
+    const rp = encoder.beginRenderPass({
+      colorAttachments: [targetAttach],
       timestampWrites: prof.pass(),
     });
     pass.draw(state, rp);

@@ -1,5 +1,5 @@
 import SHADER_SOURCE from "./terrain.wgsl";
-import { Pass, SCENE_DATA_SIZE, State, texture } from "./utils";
+import { DrawPass, State, texture } from "./utils";
 
 // Grid will be 2^SIZE - 1 on each side
 const SIZE = 6;
@@ -16,7 +16,9 @@ const CONSTANTS = {
   scale: SCALE,
 };
 
-export class Terrain implements Pass {
+export class Terrain implements DrawPass {
+  writes_depth_buffer = true;
+
   constructor(readonly pipeline: GPURenderPipeline, readonly binds: GPUBindGroup) {}
   static async create(state: State): Promise<Terrain> {
     // Start loading textures immediately
