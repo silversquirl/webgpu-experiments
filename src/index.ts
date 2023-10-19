@@ -1,22 +1,20 @@
 import { ReadonlyVec2, mat4, vec2 } from "gl-matrix";
+import { ColorCorrect } from "./color_correct";
 import { Foliage } from "./foliage";
+import { TAU, complexMul } from "./math";
 import { DummyProfiler, GPUProfiler, Profiler } from "./profiler";
+import { Shade } from "./shading";
 import { Terrain } from "./terrain";
 import {
   assert,
+  CAMERA_FOV,
   DrawPass,
+  PostPass,
+  ProfileSegment,
+  RENDER_FORMAT,
   SCENE_DATA_SIZE,
   State,
-  rad,
-  rgba,
-  complexMul,
-  TAU,
-  PostPass,
-  RENDER_FORMAT,
-  ProfileSegment,
 } from "./utils";
-import { ColorCorrect } from "./color_correct";
-import { Shade } from "./shading";
 
 async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
   let enable_profiling = opts.enable_profiling ?? false;
@@ -76,10 +74,11 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
     context,
 
     camera: {
-      proj: mat4.perspective(mat4.create(), rad(90), canvas.width / canvas.height, 0.1, 100),
+      proj: mat4.perspective(mat4.create(), CAMERA_FOV, canvas.width / canvas.height, 0.1, 100),
       look: mat4.create(),
       pos: vec2.clone([6, 7]),
       dir: vec2.clone([1, 0]),
+      birdsEye: false,
     },
   };
 
@@ -105,6 +104,14 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
     }
   });
 
+  document.addEventListener("keydown", (ev) => {
+    if (ev.code === "Space") {
+      ev.preventDefault();
+      state.camera.birdsEye = !state.camera.birdsEye;
+      updateCamera(state);
+    }
+  });
+
   return state;
 }
 
@@ -123,15 +130,19 @@ function rotateCamera(state: State, delta: ReadonlyVec2): void {
 }
 
 function updateCamera(state: State): void {
-  const at = vec2.create();
-  vec2.scaleAndAdd(at, state.camera.pos, state.camera.dir, 9);
+  if (state.camera.birdsEye) {
+    mat4.lookAt(state.camera.look, [0, 50, 0], [0, 0, 0], [0, 0, -1]);
+  } else {
+    const at = vec2.create();
+    vec2.scaleAndAdd(at, state.camera.pos, state.camera.dir, 9);
 
-  mat4.lookAt(
-    state.camera.look,
-    [state.camera.pos[0], 5.5, state.camera.pos[1]],
-    [at[0], 1.0, at[1]],
-    [0, 1, 0],
-  );
+    mat4.lookAt(
+      state.camera.look,
+      [state.camera.pos[0], 5.5, state.camera.pos[1]],
+      [at[0], 1.0, at[1]],
+      [0, 1, 0],
+    );
+  }
 }
 
 const DRAW_PASSES: ((state: State, outputFormat: GPUTextureFormat) => Promise<DrawPass>)[] = [

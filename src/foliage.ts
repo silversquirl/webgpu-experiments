@@ -1,16 +1,17 @@
 import { vec2 } from "gl-matrix";
 import { buildAliasTables, sampleAliasTables } from "./alias";
 import SHADER_SOURCE from "./foliage.wgsl";
+import { TAU } from "./math";
 import {
-  Model,
+  assert,
   DrawPass,
+  Model,
+  ProfileSegment,
   State,
-  TAU,
   imageData,
   model,
   texture,
-  assert,
-  ProfileSegment,
+  CAMERA_FOV,
 } from "./utils";
 
 const GRASS_AREA = 80;
@@ -157,15 +158,64 @@ export class Foliage implements DrawPass {
       return;
     }
 
-    const centre_offset = GRASS_AREA / 2 - CHUNK_SIZE / 2;
-    const centre_pos = vec2.fromValues(
-      x * CHUNK_SIZE - centre_offset,
-      y * CHUNK_SIZE - centre_offset,
+    // South-west corner
+    const origin = vec2.fromValues(
+      x * CHUNK_SIZE - GRASS_AREA / 2,
+      y * CHUNK_SIZE - GRASS_AREA / 2,
     );
-    const dist_sq = vec2.sqrDist(state.camera.pos, centre_pos);
+
+    // Frustum culling
+    // We use a 2d approximation of the frustum, because the ground mesh is too complex to easily intersect in 3d
+    const intersects = ((): boolean => {
+      // Check frustum origin against chunk aabb
+      if (
+        state.camera.pos[0] >= origin[0] &&
+        state.camera.pos[1] >= origin[1] &&
+        origin[0] + CHUNK_SIZE >= state.camera.pos[0] &&
+        origin[1] + CHUNK_SIZE >= state.camera.pos[1]
+      ) {
+        return true;
+      }
+
+      // Check each corner of chunk against frustum
+      const zero = vec2.create();
+
+      // Sides of frustum
+      const frustumA = vec2.rotate(vec2.create(), state.camera.dir, zero, CAMERA_FOV / 2);
+      const frustumB = vec2.rotate(vec2.create(), state.camera.dir, zero, -CAMERA_FOV / 2);
+
+      // Normals of frustum
+      vec2.set(frustumA, frustumA[1], -frustumA[0]); // Rotate clockwise
+      vec2.set(frustumB, -frustumB[1], frustumB[0]); // Rotate counter-clockwise
+
+      const corner = vec2.create();
+      for (let cy = 0; cy < 2; cy++) {
+        for (let cx = 0; cx < 2; cx++) {
+          vec2.set(corner, cx, cy);
+          vec2.scaleAndAdd(corner, origin, corner, CHUNK_SIZE);
+          vec2.sub(corner, corner, state.camera.pos);
+          const a = vec2.dot(corner, frustumA);
+          const b = vec2.dot(corner, frustumB);
+          if (a >= 0 && b >= 0) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    })();
+    if (!intersects) {
+      return;
+    }
+
+    // Check distance from camera to centre of chunk
+    origin[0] += CHUNK_SIZE / 2;
+    origin[1] += CHUNK_SIZE / 2;
+    const dist_sq = vec2.sqrDist(state.camera.pos, origin);
+
+    // Select LOD based on distance
     const close_dist = 20;
     const close = dist_sq < close_dist * close_dist;
-
     const model = this.bladeModels[close ? 0 : 1];
     pass.setVertexBuffer(0, model.buf);
 

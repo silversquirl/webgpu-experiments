@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { TAU } from "./utils";
+import { TAU } from "./math";
 
 export function generateCuspLut(lut: Float32Array): void {
   const entries = lut.length / 2;

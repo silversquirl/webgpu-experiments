@@ -1,4 +1,5 @@
-import { ReadonlyVec2, mat4, vec2 } from "gl-matrix";
+import { mat4, vec2 } from "gl-matrix";
+import { alignUp, rad } from "./math";
 
 export interface State {
   enable_profiling: boolean;
@@ -20,11 +21,14 @@ export interface State {
     proj: mat4;
     look: mat4;
     pos: vec2;
-    dir: vec2;
+    dir: vec2; // Normalized camera direction
+    birdsEye: boolean;
   };
 }
 
 export const RENDER_FORMAT: GPUTextureFormat = "rgba16float";
+
+export const CAMERA_FOV = rad(90);
 
 export const SCENE_DATA_SIZE = alignUp(
   16,
@@ -32,22 +36,12 @@ export const SCENE_DATA_SIZE = alignUp(
     4, // time: f32
 );
 
-function alignUp(align: number, x: number): number {
-  return -(-x & -align);
-}
-
 export interface DrawPass {
   writes_depth_buffer?: boolean;
   draw(state: State, pass: GPURenderPassEncoder): void;
 }
 export interface PostPass {
   draw(state: State, pass: GPURenderPassEncoder): void;
-}
-
-export const TAU = 2 * Math.PI;
-
-export function rad(deg: number): number {
-  return deg * (TAU / 360);
 }
 
 export type Color = readonly [number, number, number, number];
@@ -179,27 +173,6 @@ export function assert(cond: boolean, message = ""): asserts cond {
       throw new Error("assertion failed");
     }
   }
-}
-
-export function formatMatrix(mat: mat4): string {
-  let s = "";
-  for (let y = 0; y < 4; y++) {
-    if (y > 0) s += "\n";
-    for (let x = 0; x < 4; x++) {
-      if (x > 0) s += " ";
-      const v = mat[y * 4 + x];
-      if (v >= 0) s += " ";
-      s += v.toFixed(3);
-    }
-  }
-  return s;
-}
-
-export function complexMul(out: vec2, a: ReadonlyVec2, b: ReadonlyVec2): void {
-  const r = a[0] * b[0] - a[1] * b[1];
-  const c = a[0] * b[1] + a[1] * b[0];
-  out[0] = r;
-  out[1] = c;
 }
 
 import FULLSCREEN_SHADER_SOURCE from "./fullscreen.wgsl";
