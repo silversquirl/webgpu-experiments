@@ -219,3 +219,14 @@ export function createFullscreenPipeline(
     },
   });
 }
+
+export class ProfileSegment {
+  startTime = performance.now();
+  constructor(public name: string) {}
+
+  end() {
+    const end = performance.now();
+    performance.measure(this.name, { start: this.startTime, end: end });
+    return end - this.startTime;
+  }
+}

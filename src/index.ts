@@ -13,6 +13,7 @@ import {
   TAU,
   PostPass,
   RENDER_FORMAT,
+  ProfileSegment,
 } from "./utils";
 import { ColorCorrect } from "./color_correct";
 import { Shade } from "./shading";
@@ -79,9 +80,6 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
       look: mat4.create(),
       pos: vec2.clone([6, 7]),
       dir: vec2.clone([1, 0]),
-      // look: mat4.lookAt(mat4.create(), [50, 30, 0], [0, 1.0, 0], [0, 1, 0]),
-      // look: mat4.lookAt(mat4.create(), [0, 30, 50], [0, 1.0, 0], [0, 1, 0]),
-      // look: mat4.lookAt(mat4.create(), [1, 40, 0], [0, 1.0, 0], [0, 1, 0]),
     },
   };
 
@@ -152,7 +150,7 @@ const POST_PASSES: ((
 ];
 
 // Init engine
-console.time("engine init");
+const engineInitProfile = new ProfileSegment("engine init");
 const state = await init({
   // enable_profiling: true,
 });
@@ -182,11 +180,11 @@ const post_passes: PostPass[] = await Promise.all(
   ),
 );
 
-console.timeEnd("engine init");
+engineInitProfile.end();
 
-console.time("gpu init");
+const gpuInitProfile = new ProfileSegment("gpu init:start");
 await state.device.queue.onSubmittedWorkDone();
-console.timeEnd("gpu init");
+gpuInitProfile.end();
 
 const profiler: Profiler = state.enable_profiling
   ? new GPUProfiler(state.device, draw_passes.length + post_passes.length)
@@ -197,14 +195,17 @@ const profileSectionName = (idx: number) => {
     return "Full frame";
   }
   i--;
+
   if (i < draw_passes.length) {
     return draw_passes[i].constructor.name;
   }
   i -= draw_passes.length;
+
   if (i < post_passes.length) {
     return post_passes[i].constructor.name;
   }
   i -= post_passes.length;
+
   throw `Invalid profile section ID: ${idx}`;
 };
 
@@ -294,6 +295,8 @@ const draw = async (dt: DOMHighResTimeStamp) => {
     depthStoreOp: "store",
   };
 
+  const buildFrameProfile = new ProfileSegment("build frame");
+
   const encoder = state.device.createCommandEncoder({});
   const prof = profiler.beginFrame(encoder);
 
@@ -333,13 +336,11 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   const buf = encoder.finish();
   state.device.queue.submit([buf]);
 
-  if (state.enable_profiling) {
-    console.time("frame draw");
-  }
+  buildFrameProfile.end();
+
+  const drawFrameProfile = new ProfileSegment("draw frame");
   await state.device.queue.onSubmittedWorkDone();
-  if (state.enable_profiling) {
-    console.timeEnd("frame draw");
-  }
+  drawFrameProfile.end();
 
   const err = await state.device.popErrorScope();
   if (err !== null) {

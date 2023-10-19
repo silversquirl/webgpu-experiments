@@ -1,6 +1,16 @@
 import { buildAliasTables, sampleAliasTables } from "./alias";
 import SHADER_SOURCE from "./foliage.wgsl";
-import { Model, DrawPass, State, TAU, imageData, model, texture, assert } from "./utils";
+import {
+  Model,
+  DrawPass,
+  State,
+  TAU,
+  imageData,
+  model,
+  texture,
+  assert,
+  ProfileSegment,
+} from "./utils";
 
 const GRASS_AREA = 80;
 const CHUNK_SIZE = 10;
@@ -154,15 +164,17 @@ export class Foliage implements DrawPass {
 }
 
 function buildInstanceBuffers(state: State, heatmapData: ImageData): InstanceBuffers {
+  const profile = new ProfileSegment("generate foliage data");
+
   // Build random distribution tables
-  performance.mark("build alias:start");
+  const buildAliasProfile = new ProfileSegment("build alias table");
   const prob = new Float32Array(heatmapData.width * heatmapData.height);
   const alias = new Uint32Array(heatmapData.width * heatmapData.height);
   const max = buildAliasTables(prob, alias, heatmapData);
-  performance.mark("build alias:end");
-  performance.measure("build alias", "build alias:start", "build alias:end");
+  buildAliasProfile.end();
 
   // Generate random instance buffer
+  const fillProfile = new ProfileSegment("fill buffer");
   const data = state.device.createBuffer({
     size: INSTANCE_COUNT * 4 * 4,
     usage: GPUBufferUsage.VERTEX,
@@ -186,6 +198,7 @@ function buildInstanceBuffers(state: State, heatmapData: ImageData): InstanceBuf
     const height = 0.4 + value * (1 / max);
     instanceData[instance * 4 + 3] = height;
   }
+  fillProfile.end();
 
   const instanceChunkIdx = (idx: number) => {
     const x = Math.floor((instanceData[idx * 4 + 0] + offset) / CHUNK_SIZE);
@@ -225,9 +238,12 @@ function buildInstanceBuffers(state: State, heatmapData: ImageData): InstanceBuf
       }
     }
   };
+  const sortProfile = new ProfileSegment("sort buffer");
   sort(Math.ceil(Math.log2(CHUNKS_PER_SIDE * CHUNKS_PER_SIDE)));
+  sortProfile.end();
 
   // Compute chunk offsets
+  const chunkProfile = new ProfileSegment("compute chunk offsets");
   const chunks = new Uint32Array(CHUNKS_PER_SIDE * CHUNKS_PER_SIDE);
   let instanceIdx = 0;
   for (let i = 0; i < chunks.length; i++) {
@@ -236,13 +252,14 @@ function buildInstanceBuffers(state: State, heatmapData: ImageData): InstanceBuf
       instanceIdx++;
     }
   }
-  console.log(chunks);
   assert(
     instanceIdx === INSTANCE_COUNT,
     `Did not fill chunk buffer correctly: got ${instanceIdx} instances, wanted ${INSTANCE_COUNT}`,
   );
+  chunkProfile.end();
 
   data.unmap();
+  profile.end();
   return { data, chunks };
 }
 
