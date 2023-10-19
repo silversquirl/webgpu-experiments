@@ -25,9 +25,10 @@
 import { TAU } from "./utils";
 
 export function generateCuspLut(lut: Float32Array): void {
-  const indexToHue = TAU / (lut.length - 1);
-  for (let i = 0; i < lut.length; i++) {
-    const h = i * indexToHue;
+  const entries = lut.length / 2;
+  const indexQ = 1 / (entries - 1);
+  for (let i = 0; i < entries; i++) {
+    const h = (i * indexQ - 0.5) * TAU;
     const [L, C] = findCusp(Math.cos(h), Math.sin(h));
 
     lut[i * 2] = L;

@@ -1,5 +1,6 @@
 const srgb_cusp_lut_entries = 256u;
-@group(0) @binding(0) var<uniform> srgb_cusp_lut: array<vec4f, srgb_cusp_lut_entries>;
+const srgb_cusp_lut_array_size = srgb_cusp_lut_entries / 2u;
+@group(0) @binding(0) var<uniform> srgb_cusp_lut: array<vec4f, srgb_cusp_lut_array_size>;
 @group(0) @binding(1) var input: texture_2d<f32>;
 
 @fragment
@@ -9,11 +10,10 @@ fn fragment(@builtin(position) pixel: vec4<f32>) -> @location(0) vec4f {
     let alpha = srgb_in.w;
 
     var lab = linearSrgbToOklab(rgb_in.xyz);
-    lab *= vec3(1.2, 2.0, 2.0) + vec3(0.0, -0.3, 0.5);
+    lab *= vec3(1.1, 1.0, 1.08);
 
-    // TODO: gamut clipping
-    let rgb_out = oklabToLinearSrgb(lab);
-    return vec4(linearToSrgb(rgb_out), alpha);
+    let clipped = gamutClip(lab);
+    return vec4(linearToSrgb(clipped), alpha);
 }
 
 // Cover the screen with a single tri
@@ -100,10 +100,44 @@ fn oklabToLinearSrgb(lab: vec3<f32>) -> vec3<f32> {
     ) * lms;
 }
 
+fn gamutClip(lab: vec3f) -> vec3f {
+    let rgb = oklabToLinearSrgb(lab);
+    if all(vec3(0.0) <= rgb) && all(rgb <= vec3(1.0)) {
+        return rgb;
+    }
+
+    let C = max(1e-5, length(lab.yz));
+    let a_ = lab.y / C;
+    let b_ = lab.z / C;
+
+    let Ld = lab.x - 0.5;
+    let alpha = 0.05;
+    let e1 = 0.5 + abs(Ld) + alpha * C;
+    let L0 = 0.5 * (1.0 + sign(Ld) * (e1 - sqrt(e1 * e1 - 2.0 * abs(Ld))));
+
+    let t = gamutIntersect(a_, b_, lab.x, C, L0);
+    let L_clipped = mix(L0, lab.x, t);
+    let C_clipped = t * C;
+
+    let clipped = vec3(L_clipped, C_clipped * a_, C_clipped * b_);
+    return oklabToLinearSrgb(clipped);
+}
+
+fn gamutIntersect(a: f32, b: f32, L1: f32, C1: f32, L0: f32) -> f32 {
+    let cusp = getCusp(a, b);
+    if ((L1 - L0) * cusp.y - (cusp.x - L0) * C1) <= 0.0 {
+        // Lower half
+        return cusp.y * L0 / (C1 * cusp.x + cusp.y * (L0 - L1));
+    } else {
+        // Upper half
+        return cusp.y * (L0 - 1.0) / (C1 * (cusp.x - 1.0) + cusp.y * (L0 - L1));
+    }
+}
+        
 fn getCusp(a: f32, b: f32) -> vec2f {
     // Convert a,b to index
-    let h = TAU / 2.0 + atan2(b, a);
-    let float_idx = h * f32(srgb_cusp_lut_entries) / TAU;
+    let h = 0.5 + atan2(b, a) / TAU;
+    let float_idx = h * f32(srgb_cusp_lut_entries - 1u);
     let floor_idx = floor(float_idx);
     let lerp = float_idx - floor_idx;
     let idx = u32(floor_idx);
@@ -111,10 +145,10 @@ fn getCusp(a: f32, b: f32) -> vec2f {
     // Look up index in table
     // This is a little fiddly because we have to pack two entries into one vector to satisfy alignment constraints
     let vec0 = srgb_cusp_lut[idx / 2u];
-    let vec1 = srgb_cusp_lut[((idx + 1u) / 2u) & (srgb_cusp_lut_entries - 1u)];
+    let vec1 = srgb_cusp_lut[((idx + 1u) / 2u) % srgb_cusp_lut_entries];
     let first = vec2((idx & 1u) == 0u);
     let low = select(vec0.xy, vec0.zw, first);
-    let high = select(vec1.zw, vec1.yx, first);
+    let high = select(vec1.zw, vec1.xy, first);
 
     // Lerp between low and high entries
     return mix(low, high, vec2(lerp));

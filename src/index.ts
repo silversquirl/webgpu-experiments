@@ -179,6 +179,22 @@ console.timeEnd("gpu init");
 const profiler: Profiler = state.enable_profiling
   ? new GPUProfiler(state.device, draw_passes.length + post_passes.length)
   : new DummyProfiler();
+const profileSectionName = (idx: number) => {
+  let i = idx;
+  if (i === 0) {
+    return "Full frame";
+  }
+  i--;
+  if (i < draw_passes.length) {
+    return draw_passes[i].constructor.name;
+  }
+  i -= draw_passes.length;
+  if (i < post_passes.length) {
+    return post_passes[i].constructor.name;
+  }
+  i -= post_passes.length;
+  throw `Invalid profile section ID: ${idx}`;
+};
 
 const startTime = performance.now();
 let frameCount = 0;
@@ -189,8 +205,8 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   if (state.enable_profiling && dt - startTime > 5000) {
     if (totalProfileSections.length > 0) {
       let results = "Average profile timings:\n";
-      for (const delta of totalProfileSections) {
-        results += `- ${(delta / frameCount).toFixed(5)}ms\n`;
+      for (const [idx, delta] of totalProfileSections.entries()) {
+        results += `- ${profileSectionName(idx)}: ${(delta / frameCount).toFixed(5)}ms\n`;
       }
       console.log(results);
     }
@@ -227,7 +243,7 @@ const draw = async (dt: DOMHighResTimeStamp) => {
         for (const [idx, section] of profileSections.entries()) {
           const delta = section.end - section.start;
           const deltaMs = Number(delta) / 1_000_000;
-          results += `- ${deltaMs.toFixed(5)}ms`;
+          results += `- ${profileSectionName(idx)}: ${deltaMs.toFixed(5)}ms`;
           results += "\n";
 
           totalProfileSections[idx] = (totalProfileSections[idx] ?? 0) + deltaMs;
