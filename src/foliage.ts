@@ -1,3 +1,4 @@
+import { vec2 } from "gl-matrix";
 import { buildAliasTables, sampleAliasTables } from "./alias";
 import SHADER_SOURCE from "./foliage.wgsl";
 import {
@@ -29,13 +30,15 @@ export class Foliage implements DrawPass {
   constructor(
     readonly pipeline: GPURenderPipeline,
     readonly binds: GPUBindGroup,
-    readonly bladeModel: Model,
+    readonly bladeModels: Model[],
     readonly instanceBuffers: InstanceBuffers,
   ) {}
 
   static async create(state: State, outputFormat: GPUTextureFormat): Promise<Foliage> {
     // Start loading assets immediately
-    const bladeModel = model(state, GPUBufferUsage.VERTEX, "/assets/grass_blade.high.stl");
+    const bladeModels = ["/assets/grass_blade.high.stl", "/assets/grass_blade.low.stl"].map(
+      (path) => model(state, GPUBufferUsage.VERTEX, path),
+    );
     const heightmapTex = texture(
       state,
       GPUTextureUsage.TEXTURE_BINDING,
@@ -55,7 +58,7 @@ export class Foliage implements DrawPass {
       ],
     });
 
-    const shader = await state.device.createShaderModule({
+    const shader = state.device.createShaderModule({
       code: SHADER_SOURCE,
       hints: {
         vertex: { layout },
@@ -128,22 +131,21 @@ export class Foliage implements DrawPass {
 
     const instanceBuffers = buildInstanceBuffers(state, await heatmap);
 
-    return new Foliage(pipeline, binds, await bladeModel, instanceBuffers);
+    return new Foliage(pipeline, binds, await Promise.all(bladeModels), instanceBuffers);
   }
 
   draw(state: State, pass: GPURenderPassEncoder): void {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.binds);
-    pass.setVertexBuffer(0, this.bladeModel.buf);
 
     for (let y = 0; y < CHUNKS_PER_SIDE; y++) {
       for (let x = 0; x < CHUNKS_PER_SIDE; x++) {
-        this.drawChunk(pass, x, y);
+        this.drawChunk(state, pass, x, y);
       }
     }
   }
 
-  drawChunk(pass: GPURenderPassEncoder, x: number, y: number): void {
+  drawChunk(state: State, pass: GPURenderPassEncoder, x: number, y: number): void {
     assert(x >= 0 && y >= 0, `negative: x=${x}, y=${y}`);
     assert(x < CHUNKS_PER_SIDE && y < CHUNKS_PER_SIDE, `too big: x=${x}, y=${y}`);
 
@@ -155,11 +157,23 @@ export class Foliage implements DrawPass {
       return;
     }
 
+    const centre_offset = GRASS_AREA / 2 - CHUNK_SIZE / 2;
+    const centre_pos = vec2.fromValues(
+      x * CHUNK_SIZE - centre_offset,
+      y * CHUNK_SIZE - centre_offset,
+    );
+    const dist_sq = vec2.sqrDist(state.camera.pos, centre_pos);
+    const close_dist = 20;
+    const close = dist_sq < close_dist * close_dist;
+
+    const model = this.bladeModels[close ? 0 : 1];
+    pass.setVertexBuffer(0, model.buf);
+
     const offset = start * 4 * 4;
     const size = (end - start) * 4 * 4;
-
     pass.setVertexBuffer(1, this.instanceBuffers.data, offset, size);
-    pass.draw(this.bladeModel.numVerts, end - start);
+
+    pass.draw(model.numVerts, end - start);
   }
 }
 
