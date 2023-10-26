@@ -15,6 +15,7 @@ import {
   SCENE_DATA_SIZE,
   State,
 } from "./utils";
+import { Fog } from "./fog";
 
 async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
   let enable_profiling = opts.enable_profiling ?? false;
@@ -157,6 +158,7 @@ const POST_PASSES: ((
 ) => Promise<PostPass>)[] = [
   // Declare postprocessing passes
   Shade.create,
+  Fog.create,
   ColorCorrect.create,
 ];
 

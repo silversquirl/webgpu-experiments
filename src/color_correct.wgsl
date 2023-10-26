@@ -10,7 +10,7 @@ fn fragment(@builtin(position) pixel: vec4<f32>) -> @location(0) vec4f {
     let alpha = srgb_in.w;
 
     var lab = linearSrgbToOklab(rgb_in.xyz);
-    lab *= vec3(1.1, 1.0, 1.08);
+    lab *= vec3(1.1, 1.05, 1.08);
 
     let clipped = gamutClip(lab);
     return vec4(linearToSrgb(clipped), alpha);

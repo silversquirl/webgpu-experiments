@@ -10,10 +10,7 @@ fn fragment(@builtin(position) pixel: vec4<f32>) -> @location(0) vec4f {
     let mat = u32(data.w);
 
     let terrainTexel = textureSample(terrainSurface, samp, data.xy);
-    if mat == 0u {
-        // Sky
-        return vec4(0.5, 0.8, 0.9, 1.0);
-    } else if mat == 1u {
+    if mat == 1u {
         // Terrain
         return terrainTexel;
     } else if mat == 2u {
