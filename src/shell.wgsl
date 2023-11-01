@@ -42,16 +42,9 @@ fn fragment(@location(0) startPos: vec3f, @location(1) camPos: vec3f) -> @locati
 
     let height = raycast(startPos, dir);
     if height < 0.0 {
-        // return vec4(0.0);
         discard;
     }
     return vec4(height, 0.0, 0.0, 2.0);
-
-    // let radius = textureLoad(noiseTexture, vec2<i32>(pos), i32(shell), 0).x;
-    // if dot(localPos, localPos) >= radius {
-    //     discard;
-    // }
-    // return vec4(1.0 - radius, 0.0, 0.0, 2.0);
 }
 
 fn raycast(startPos: vec3f, dir: vec3f) -> f32 {
@@ -77,14 +70,36 @@ fn raycast(startPos: vec3f, dir: vec3f) -> f32 {
             return -1.0;
         }
 
-        let value = floatHash2(vec2<u32>(pos.xz));
-        let height = pos.y / total_height;
-        let radius = 1.0 - height;
-        let circlePos = (pos.xz - floor(pos.xz) - 0.5) * 2.0;
-        if value >= height && dot(circlePos, circlePos) < radius * radius {
-            return height;
-        }
 
+        let value = floatHash2(vec2<u32>(pos.xz));
+        let capHeight = value * total_height;
+        if pos.y > capHeight {
+            if nextPos.y <= capHeight {
+                // Ray may hit top of truncated cone
+                let capT = (capHeight - startPos.y) / dir.y;
+                let capPos = (startPos.xz + dir.xz * capT) - (floor(pos.xz) + 0.5);
+                let radius = 1.0 - value;
+                if dot(capPos, capPos) <= radius * radius {
+                    return value;
+                }
+            }
+        } else {
+            // Cone intersection
+            let cone = Cone(
+                cos(atan2(1.0, total_height)),
+                total_height,
+                vec3(floor(pos.xz) + 0.5, total_height).xzy,
+                vec3(0.0, -1.0, 0.0),
+            );
+
+            let coneT = intersectCone(cone, Ray(startPos, dir));
+            if coneT >= 0.0 {
+                let height = (startPos + dir * coneT).y;
+                if height <= capHeight {
+                    return height / total_height;
+                }
+            }
+        }
         pos = nextPos;
     }
     return 0.0;
@@ -92,6 +107,47 @@ fn raycast(startPos: vec3f, dir: vec3f) -> f32 {
 fn invalidPos(pos: vec3f) -> bool {
     let size = plane_size * blade_density;
     return any(pos < vec3(0.0)) || any(pos.xz >= vec2(size)) || pos.y > total_height ;
+}
+
+// Cone intersection ported from https://www.shadertoy.com/view/MtcXWr
+struct Cone {
+    cosa: f32,
+    h: f32,
+    c: vec3f,
+    v: vec3f,
+}
+
+struct Ray {
+    o: vec3f,
+    d: vec3f,
+}
+
+fn intersectCone(s: Cone, r: Ray) -> f32 {
+    let co = r.o - s.c;
+
+    let a = dot(r.d, s.v) * dot(r.d, s.v) - s.cosa * s.cosa;
+    let b = 2. * (dot(r.d, s.v) * dot(co, s.v) - dot(r.d, co) * s.cosa * s.cosa);
+    let c = dot(co, s.v) * dot(co, s.v) - dot(co, co) * s.cosa * s.cosa;
+
+    var det = b * b - 4. * a * c;
+    if det < 0. {
+        return -1.0;
+    }
+
+    det = sqrt(det);
+    let t1 = (-b - det) / (2. * a);
+    let t2 = (-b + det) / (2. * a);
+
+    // This is a bit messy; there ought to be a more elegant solution.
+    var t = t1;
+    if t < 0.0 || (t2 > 0.0 && t2 < t) {
+        t = t2;
+    }
+    if t < 0. {
+        return -1.0;
+    }
+
+    return t;
 }
 
 // PCG-based hash function; pareto-optimal according to https://jcgt.org/published/0009/03/02/
