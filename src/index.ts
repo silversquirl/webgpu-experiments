@@ -286,12 +286,19 @@ const draw = async (dt: DOMHighResTimeStamp) => {
   prevFrame = dt;
 
   {
+    let off = 0;
     // Generate MVP matrix
     const mvp = new Float32Array(state.sceneData, 0, 4 * 4);
     mat4.mul(mvp, state.camera.proj, state.camera.look);
+    off += 4 * 4 * 4;
+    // Generate inverse MVP
+    const inv_mvp = new Float32Array(state.sceneData, off, 4 * 4);
+    mat4.invert(inv_mvp, mvp);
+    off += 4 * 4 * 4;
     // Update current time
     const data = new DataView(state.sceneData);
-    data.setFloat32(4 * 4 * 4, (dt - startTime) / 1000, true);
+    data.setFloat32(off, (dt - startTime) / 1000, true);
+    off += 4;
     // Upload scene data
     state.device.queue.writeBuffer(state.sceneDataBuf, 0, state.sceneData);
   }

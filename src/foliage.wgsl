@@ -1,5 +1,6 @@
 struct SceneData {
     mvp: mat4x4<f32>,
+    inv_mvp: mat4x4<f32>,
     time: f32,
 }
 

@@ -33,6 +33,7 @@ export const CAMERA_FOV = rad(90);
 export const SCENE_DATA_SIZE = alignUp(
   16,
   4 * 4 * 4 + // mvp: mat4x4<f32>
+    4 * 4 * 4 + // inv_mvp: mat4x4<f32>
     4, // time: f32
 );
 
