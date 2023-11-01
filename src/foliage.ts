@@ -4,6 +4,7 @@ import SHADER_SOURCE from "./foliage.wgsl";
 import { TAU } from "./math";
 import {
   assert,
+  CAMERA_FOV,
   DrawPass,
   Model,
   ProfileSegment,
@@ -11,7 +12,6 @@ import {
   imageData,
   model,
   texture,
-  CAMERA_FOV,
 } from "./utils";
 
 const GRASS_AREA = 80;

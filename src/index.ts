@@ -1,5 +1,6 @@
 import { ReadonlyVec2, mat4, vec2 } from "gl-matrix";
 import { ColorCorrect } from "./color_correct";
+import { Fog } from "./fog";
 import { Foliage } from "./foliage";
 import { TAU, complexMul } from "./math";
 import { DummyProfiler, GPUProfiler, Profiler } from "./profiler";
@@ -15,7 +16,7 @@ import {
   SCENE_DATA_SIZE,
   State,
 } from "./utils";
-import { Fog } from "./fog";
+import { Shell } from "./shell";
 
 async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
   let enable_profiling = opts.enable_profiling ?? false;
@@ -77,7 +78,8 @@ async function init(opts: { enable_profiling?: boolean } = {}): Promise<State> {
     camera: {
       proj: mat4.perspective(mat4.create(), CAMERA_FOV, canvas.width / canvas.height, 0.1, 100),
       look: mat4.create(),
-      pos: vec2.clone([6, 7]),
+      // pos: vec2.clone([6, 7]),
+      pos: vec2.clone([-3, 5]),
       dir: vec2.clone([1, 0]),
       birdsEye: false,
     },
@@ -148,9 +150,11 @@ function updateCamera(state: State): void {
 
 const DRAW_PASSES: ((state: State, outputFormat: GPUTextureFormat) => Promise<DrawPass>)[] = [
   // Declare render passes
-  Terrain.create,
-  Foliage.create,
+  // Terrain.create,
+  // Foliage.create,
+  Shell.create,
 ];
+
 const POST_PASSES: ((
   state: State,
   inputColorTex: GPUTextureView,
@@ -158,8 +162,8 @@ const POST_PASSES: ((
 ) => Promise<PostPass>)[] = [
   // Declare postprocessing passes
   Shade.create,
-  Fog.create,
-  ColorCorrect.create,
+  // Fog.create,
+  // ColorCorrect.create,
 ];
 
 // Init engine
